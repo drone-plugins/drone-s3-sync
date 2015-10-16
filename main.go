@@ -135,15 +135,15 @@ func command(s S3) *exec.Cmd {
 	if s.Delete {
 		args = append(args, "--delete")
 	}
-	// append include flag if specified
-	if len(s.Include) != 0 {
-		args = append(args, "--include")
-		args = append(args, s.Include)
-	}
 	// appends exclude flag if specified
 	if len(s.Exclude) != 0 {
 		args = append(args, "--exclude")
 		args = append(args, s.Exclude)
+	}
+	// append include flag if specified
+	if len(s.Include) != 0 {
+		args = append(args, "--include")
+		args = append(args, s.Include)
 	}
 	// appends content-type if specified
 	if len(s.ContentType) != 0 {
