@@ -8,5 +8,5 @@ RUN apk add --update \
 	python \
 	py-pip \
 	&& pip install awscli
-ADD drone-s3 /bin/
+ADD drone-s3-sync /bin/
 ENTRYPOINT ["/bin/drone-s3-sync"]
