@@ -21,7 +21,7 @@ publish:
 
 plugin:
   name: S3 Sync
-  desc: Syncs a directory with an Amason S3 Bucket
+  desc: Syncs a directory with an Amazon S3 Bucket
   type: publish
   image: plugins/drone-s3-sync
   labels:
