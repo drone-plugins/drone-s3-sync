@@ -10,7 +10,7 @@ Use the S3 sync plugin to synchronize files and folders with an Amazon S3 bucket
 * `delete` - deletes files in the target not found in the source
 * `include` - don't exclude files that match the specified pattern
 * `exclude` - exclude files that match the specified pattern
-* `content-type` - override default mime-tpyes to use this value
+* `content_type` - override default mime-tpyes to use this value
 
 The following is a sample S3 configuration in your .drone.yml file:
 
