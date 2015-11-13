@@ -1,161 +1,244 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"mime"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 
-	"github.com/drone/drone-plugin-go/plugin"
+	"github.com/drone/drone-go/plugin"
+	"launchpad.net/goamz/aws"
+	"launchpad.net/goamz/s3"
 )
 
-type S3 struct {
-	Key    string `json:"access_key"`
-	Secret string `json:"secret_key"`
-	Bucket string `json:"bucket"`
+type AWS struct {
+	client *s3.S3
+	bucket *s3.Bucket
+	remote []string
+	local  []string
+	vargs  PluginArgs
+}
 
-	// us-east-1
-	// us-west-1
-	// us-west-2
-	// eu-west-1
-	// ap-southeast-1
-	// ap-southeast-2
-	// ap-northeast-1
-	// sa-east-1
-	Region string `json:"region"`
+type StringMap struct {
+	parts map[string]string
+}
 
-	// Indicates the files ACL, which should be one
-	// of the following:
-	//     private
-	//     public-read
-	//     public-read-write
-	//     authenticated-read
-	//     bucket-owner-read
-	//     bucket-owner-full-control
-	Access string `json:"acl"`
+func (e *StringMap) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
 
-	// Copies the files from the specified directory.
-	// Regexp matching will apply to match multiple
-	// files
-	//
-	// Examples:
-	//    /path/to/file
-	//    /path/to/*.txt
-	//    /path/to/*/*.txt
-	//    /path/to/**
-	Source string `json:"source"`
-	Target string `json:"target"`
+	p := map[string]string{}
+	if err := json.Unmarshal(b, &p); err != nil {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		p["_string_"] = s
+	}
 
-	// Include or exclude all files or objects from the command
-	// that matches the specified pattern.
-	Include string `json:"include"`
-	Exclude string `json:"exclude"`
+	e.parts = p
+	return nil
+}
 
-	// Files that exist in the destination but not in the source
-	// are deleted during sync.
-	Delete bool `json:"delete"`
+func (e *StringMap) IsEmpty() bool {
+	if e == nil || len(e.parts) == 0 {
+		return true
+	}
 
-	// Specify an explicit content type for this operation. This
-	// value overrides any guessed mime types.
-	ContentType string `json:"content_type"`
+	return false
+}
+
+func (e *StringMap) IsString() bool {
+	if e.IsEmpty() || len(e.parts) != 1 {
+		return false
+	}
+
+	_, ok := e.parts["_string_"]
+	return ok
+}
+
+func (e *StringMap) String() string {
+	if e.IsEmpty() || !e.IsString() {
+		return ""
+	}
+
+	return e.parts["_string_"]
+}
+
+func (e *StringMap) Map() map[string]string {
+	if e.IsEmpty() || e.IsString() {
+		return map[string]string{}
+	}
+
+	return e.parts
+}
+
+type PluginArgs struct {
+	Key         string    `json:"access_key"`
+	Secret      string    `json:"secret_key"`
+	Bucket      string    `json:"bucket"`
+	Region      string    `json:"region"`
+	Source      string    `json:"source"`
+	Target      string    `json:"target"`
+	Delete      bool      `json:"delete"`
+	Access      StringMap `json:"acl"`
+	ContentType StringMap `json:"content_type"`
+}
+
+func NewClient(vargs PluginArgs) AWS {
+	auth := aws.Auth{AccessKey: vargs.Key, SecretKey: vargs.Secret}
+	region := aws.Regions[vargs.Region]
+	client := s3.New(auth, region)
+	bucket := client.Bucket(vargs.Bucket)
+	remote := make([]string, 1, 1)
+	local := make([]string, 1, 1)
+
+	aws := AWS{client, bucket, remote, local, vargs}
+	return aws
+}
+
+func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
+	if path == "." {
+		return nil
+	}
+
+	if info.IsDir() {
+		return nil
+	}
+
+	aws.local = append(aws.local, path)
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	var access s3.ACL
+	if aws.vargs.Access.IsString() {
+		access = s3.ACL(aws.vargs.Access.String())
+	} else if !aws.vargs.Access.IsEmpty() {
+		accessMap := aws.vargs.Access.Map()
+		for pattern := range accessMap {
+			if match, _ := filepath.Match(pattern, path); match == true {
+				access = s3.ACL(accessMap[pattern])
+				break
+			}
+		}
+	}
+
+	if access == "" {
+		access = s3.ACL("private")
+	}
+
+	fileExt := filepath.Ext(path)
+	var contentType string
+	if aws.vargs.ContentType.IsString() {
+		contentType = aws.vargs.ContentType.String()
+	} else if !aws.vargs.ContentType.IsEmpty() {
+		contentMap := aws.vargs.ContentType.Map()
+		for patternExt := range contentMap {
+			if patternExt == fileExt {
+				contentType = contentMap[patternExt]
+				break
+			}
+		}
+	}
+
+	if contentType == "" {
+		contentType = mime.TypeByExtension(fileExt)
+	}
+
+	fmt.Printf("Uploading %s with Content-Type %s and permissions %s\n", path, contentType, access)
+	err = aws.bucket.PutReader(path, file, info.Size(), contentType, access)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (aws *AWS) List(path string) (*s3.ListResp, error) {
+	return aws.bucket.List(path, "", "", 10000)
+}
+
+func (aws *AWS) Cleanup() error {
+	for _, remote := range aws.remote {
+		found := false
+		for _, local := range aws.local {
+			if local == remote {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			fmt.Println("Removing remote file ", remote)
+			err := aws.bucket.Del(remote)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func main() {
-	workspace := plugin.Workspace{}
-	vargs := S3{}
+	vargs := PluginArgs{}
 
-	plugin.Param("workspace", &workspace)
 	plugin.Param("vargs", &vargs)
-	plugin.MustParse()
+	if err := plugin.Parse(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	// skip if AWS key or SECRET are empty. A good example for this would
-	// be forks building a project. S3 might be configured in the source
-	// repo, but not in the fork
-	if len(vargs.Key) == 0 || len(vargs.Secret) == 0 {
+	if len(vargs.Key) == 0 || len(vargs.Secret) == 0 || len(vargs.Bucket) == 0 {
 		return
 	}
 
-	// make sure a default region is set
 	if len(vargs.Region) == 0 {
 		vargs.Region = "us-east-1"
 	}
 
-	// make sure a default access is set
-	// let's be conservative and assume private
-	if len(vargs.Access) == 0 {
-		vargs.Access = "private"
-	}
-
-	// make sure a default source is set
 	if len(vargs.Source) == 0 {
 		vargs.Source = "."
 	}
 
-	// if the target starts with a "/" we need
-	// to remove it, otherwise we might adding
-	// a 3rd slash to s3://
 	if strings.HasPrefix(vargs.Target, "/") {
 		vargs.Target = vargs.Target[1:]
 	}
-	vargs.Target = fmt.Sprintf("s3://%s/%s", vargs.Bucket, vargs.Target)
 
-	cmd := command(vargs)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "AWS_ACCESS_KEY_ID="+vargs.Key)
-	cmd.Env = append(cmd.Env, "AWS_SECRET_ACCESS_KEY="+vargs.Secret)
-	cmd.Dir = workspace.Path
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	trace(cmd)
+	if vargs.Target != "" && !strings.HasSuffix(vargs.Target, "/") {
+		vargs.Target = fmt.Sprintf("%s/", vargs.Target)
+	}
 
-	// run the command and exit if failed.
-	err := cmd.Run()
+	client := NewClient(vargs)
+
+	resp, err := client.List(vargs.Target)
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
-}
 
-// command is a helper function that returns the command
-// and arguments to upload to aws from the command line.
-func command(s S3) *exec.Cmd {
-
-	// command line args
-	args := []string{
-		"s3",
-		"sync",
-		s.Source,
-		s.Target,
-		"--acl",
-		s.Access,
-		"--region",
-		s.Region,
+	for _, item := range resp.Contents {
+		client.remote = append(client.remote, item.Key)
 	}
 
-	// append delete flag if specified
-	if s.Delete {
-		args = append(args, "--delete")
-	}
-	// appends exclude flag if specified
-	if len(s.Exclude) != 0 {
-		args = append(args, "--exclude")
-		args = append(args, s.Exclude)
-	}
-	// append include flag if specified
-	if len(s.Include) != 0 {
-		args = append(args, "--include")
-		args = append(args, s.Include)
-	}
-	// appends content-type if specified
-	if len(s.ContentType) != 0 {
-		args = append(args, "--content-type")
-		args = append(args, s.ContentType)
+	err = filepath.Walk(vargs.Source, client.visit)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	return exec.Command("aws", args...)
-}
-
-// trace writes each command to standard error (preceded by a ‘$ ’) before it
-// is executed. Used for debugging your build.
-func trace(cmd *exec.Cmd) {
-	fmt.Println("$", strings.Join(cmd.Args, " "))
+	if vargs.Delete {
+		err = client.Cleanup()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
 }
