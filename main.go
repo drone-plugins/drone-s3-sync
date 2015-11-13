@@ -101,6 +101,10 @@ func NewClient(vargs PluginArgs) AWS {
 }
 
 func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
+
 	if path == "." {
 		return nil
 	}
