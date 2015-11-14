@@ -114,7 +114,12 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 		return nil
 	}
 
-	aws.local = append(aws.local, path)
+	localPath := strings.TrimPrefix(path, vargs.Source)
+	if strings.HasPrefix(localPath, "/") {
+		localPath = localPath[1:]
+	}
+
+	aws.local = append(aws.local, localPath)
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -128,7 +133,7 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 	} else if !aws.vargs.Access.IsEmpty() {
 		accessMap := aws.vargs.Access.Map()
 		for pattern := range accessMap {
-			if match, _ := filepath.Match(pattern, path); match == true {
+			if match, _ := filepath.Match(pattern, localPath); match == true {
 				access = s3.ACL(accessMap[pattern])
 				break
 			}
@@ -139,7 +144,7 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 		access = s3.ACL("private")
 	}
 
-	fileExt := filepath.Ext(path)
+	fileExt := filepath.Ext(localPath)
 	var contentType string
 	if aws.vargs.ContentType.IsString() {
 		contentType = aws.vargs.ContentType.String()
@@ -157,8 +162,8 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 		contentType = mime.TypeByExtension(fileExt)
 	}
 
-	fmt.Printf("Uploading %s with Content-Type %s and permissions %s\n", path, contentType, access)
-	err = aws.bucket.PutReader(path, file, info.Size(), contentType, access)
+	fmt.Printf("Uploading %s with Content-Type %s and permissions %s\n", localPath, contentType, access)
+	err = aws.bucket.PutReader(filepath.Join(vargs.Target, localPath), file, info.Size(), contentType, access)
 	if err != nil {
 		return err
 	}
@@ -218,10 +223,6 @@ func main() {
 
 	if strings.HasPrefix(vargs.Target, "/") {
 		vargs.Target = vargs.Target[1:]
-	}
-
-	if vargs.Target != "" && !strings.HasSuffix(vargs.Target, "/") {
-		vargs.Target = fmt.Sprintf("%s/", vargs.Target)
 	}
 
 	client := NewClient(vargs)
