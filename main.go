@@ -212,6 +212,14 @@ func main() {
 		vargs.Source = "."
 	}
 
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	vargs.Source = filepath.Join(wd, vargs.Source)
+
 	if strings.HasPrefix(vargs.Target, "/") {
 		vargs.Target = vargs.Target[1:]
 	}
