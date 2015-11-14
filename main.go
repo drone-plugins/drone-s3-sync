@@ -114,7 +114,7 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 		return nil
 	}
 
-	localPath := strings.TrimPrefix(path, vargs.Source)
+	localPath := strings.TrimPrefix(path, aws.vargs.Source)
 	if strings.HasPrefix(localPath, "/") {
 		localPath = localPath[1:]
 	}
@@ -163,7 +163,7 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 	}
 
 	fmt.Printf("Uploading %s with Content-Type %s and permissions %s\n", localPath, contentType, access)
-	err = aws.bucket.PutReader(filepath.Join(vargs.Target, localPath), file, info.Size(), contentType, access)
+	err = aws.bucket.PutReader(filepath.Join(aws.vargs.Target, localPath), file, info.Size(), contentType, access)
 	if err != nil {
 		return err
 	}
