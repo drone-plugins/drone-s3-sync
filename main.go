@@ -10,13 +10,16 @@ import (
 
 	"github.com/drone/drone-go/drone"
 	"github.com/drone/drone-go/plugin"
-	"launchpad.net/goamz/aws"
-	"launchpad.net/goamz/s3"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
 type AWS struct {
 	client *s3.S3
-	bucket *s3.Bucket
+	uploader *s3manager.Uploader
 	remote []string
 	local  []string
 	vargs  PluginArgs
@@ -90,18 +93,20 @@ type PluginArgs struct {
 }
 
 func NewClient(vargs PluginArgs) AWS {
-	auth := aws.Auth{AccessKey: vargs.Key, SecretKey: vargs.Secret}
-	region := aws.Regions[vargs.Region]
-	client := s3.New(auth, region)
-	bucket := client.Bucket(vargs.Bucket)
+	sess := session.New(&aws.Config{
+		Credentials: credentials.NewStaticCredentials(vargs.Key, vargs.Secret, ""),
+		Region: aws.String(vargs.Region),
+	})
+	client := s3.New(sess)
+	uploader := s3manager.NewUploader(sess)
 	remote := make([]string, 1, 1)
 	local := make([]string, 1, 1)
 
-	aws := AWS{client, bucket, remote, local, vargs}
-	return aws
+	a := AWS{client, uploader, remote, local, vargs}
+	return a
 }
 
-func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
+func (a *AWS) visit(path string, info os.FileInfo, err error) error {
 	if err != nil {
 		return err
 	}
@@ -114,12 +119,12 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 		return nil
 	}
 
-	localPath := strings.TrimPrefix(path, aws.vargs.Source)
+	localPath := strings.TrimPrefix(path, a.vargs.Source)
 	if strings.HasPrefix(localPath, "/") {
 		localPath = localPath[1:]
 	}
 
-	aws.local = append(aws.local, localPath)
+	a.local = append(a.local, localPath)
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -127,29 +132,29 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 
 	defer file.Close()
 
-	var access s3.ACL
-	if aws.vargs.Access.IsString() {
-		access = s3.ACL(aws.vargs.Access.String())
-	} else if !aws.vargs.Access.IsEmpty() {
-		accessMap := aws.vargs.Access.Map()
+	access := ""
+	if a.vargs.Access.IsString() {
+		access = a.vargs.Access.String()
+	} else if !a.vargs.Access.IsEmpty() {
+		accessMap := a.vargs.Access.Map()
 		for pattern := range accessMap {
 			if match, _ := filepath.Match(pattern, localPath); match == true {
-				access = s3.ACL(accessMap[pattern])
+				access = accessMap[pattern]
 				break
 			}
 		}
 	}
 
 	if access == "" {
-		access = s3.ACL("private")
+		access = "private"
 	}
 
 	fileExt := filepath.Ext(localPath)
 	var contentType string
-	if aws.vargs.ContentType.IsString() {
-		contentType = aws.vargs.ContentType.String()
-	} else if !aws.vargs.ContentType.IsEmpty() {
-		contentMap := aws.vargs.ContentType.Map()
+	if a.vargs.ContentType.IsString() {
+		contentType = a.vargs.ContentType.String()
+	} else if !a.vargs.ContentType.IsEmpty() {
+		contentMap := a.vargs.ContentType.Map()
 		for patternExt := range contentMap {
 			if patternExt == fileExt {
 				contentType = contentMap[patternExt]
@@ -162,8 +167,14 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 		contentType = mime.TypeByExtension(fileExt)
 	}
 
-	fmt.Printf("Uploading %s with Content-Type %s and permissions %s\n", localPath, contentType, access)
-	err = aws.bucket.PutReader(filepath.Join(aws.vargs.Target, localPath), file, info.Size(), contentType, access)
+	fmt.Printf("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"\n", localPath, contentType, access)
+	_, err = a.uploader.Upload(&s3manager.UploadInput{
+		Bucket: aws.String(a.vargs.Bucket),
+		Key: aws.String(filepath.Join(a.vargs.Target, localPath)),
+		Body: file,
+		ContentType: aws.String(contentType),
+		ACL: aws.String(access),
+	})
 	if err != nil {
 		return err
 	}
@@ -171,14 +182,17 @@ func (aws *AWS) visit(path string, info os.FileInfo, err error) error {
 	return nil
 }
 
-func (aws *AWS) List(path string) (*s3.ListResp, error) {
-	return aws.bucket.List(path, "", "", 10000)
+func (a *AWS) List(path string) (*s3.ListObjectsOutput, error) {
+	return a.client.ListObjects(&s3.ListObjectsInput{
+		Bucket: aws.String(a.vargs.Bucket),
+		Prefix: aws.String(path),
+	})
 }
 
-func (aws *AWS) Cleanup() error {
-	for _, remote := range aws.remote {
+func (a *AWS) Cleanup() error {
+	for _, remote := range a.remote {
 		found := false
-		for _, local := range aws.local {
+		for _, local := range a.local {
 			if local == remote {
 				found = true
 				break
@@ -186,8 +200,11 @@ func (aws *AWS) Cleanup() error {
 		}
 
 		if !found {
-			fmt.Println("Removing remote file ", remote)
-			err := aws.bucket.Del(remote)
+			fmt.Printf("Removing remote file \"%s\"\n", remote)
+			_, err := a.client.DeleteObject(&s3.DeleteObjectInput{
+				Bucket: aws.String(a.vargs.Bucket),
+				Key: aws.String(remote),
+			})
 			if err != nil {
 				return err
 			}
@@ -234,7 +251,7 @@ func main() {
 	}
 
 	for _, item := range resp.Contents {
-		client.remote = append(client.remote, item.Key)
+		client.remote = append(client.remote, *item.Key)
 	}
 
 	err = filepath.Walk(vargs.Source, client.visit)
