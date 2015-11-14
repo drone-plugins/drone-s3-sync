@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/drone/drone-go/drone"
 	"github.com/drone/drone-go/plugin"
 	"launchpad.net/goamz/aws"
 	"launchpad.net/goamz/s3"
@@ -193,8 +194,10 @@ func (aws *AWS) Cleanup() error {
 
 func main() {
 	vargs := PluginArgs{}
+	workspace := drone.Workspace{}
 
 	plugin.Param("vargs", &vargs)
+	plugin.Param("workspace", &workspace)
 	if err := plugin.Parse(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -211,14 +214,7 @@ func main() {
 	if len(vargs.Source) == 0 {
 		vargs.Source = "."
 	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	vargs.Source = filepath.Join(wd, vargs.Source)
+	vargs.Source = filepath.Join(workspace.Path, vargs.Source)
 
 	if strings.HasPrefix(vargs.Target, "/") {
 		vargs.Target = vargs.Target[1:]
