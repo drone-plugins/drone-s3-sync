@@ -65,7 +65,7 @@ publish:
     target: /target/location
     delete: true
     metadata:
-      Cache-Control: max-age: 10000
+      Cache-Control: "max-age: 10000"
 ```
 
 Or you can specify metadata for file patterns by using a glob:
@@ -83,7 +83,7 @@ publish:
     delete: true
     metadata:
       "*.png":
-        Cache-Control: max-age: 10000000
+        Cache-Control: "max-age: 10000000"
       "*.html":
-        Cache-Control: max-age: 1000
+        Cache-Control: "max-age: 1000"
 ```
