@@ -1,218 +1,14 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"mime"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/drone/drone-go/drone"
 	"github.com/drone/drone-go/plugin"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
-
-type AWS struct {
-	client *s3.S3
-	uploader *s3manager.Uploader
-	remote []string
-	local  []string
-	vargs  PluginArgs
-}
-
-type StringMap struct {
-	parts map[string]string
-}
-
-func (e *StringMap) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 {
-		return nil
-	}
-
-	p := map[string]string{}
-	if err := json.Unmarshal(b, &p); err != nil {
-		var s string
-		if err := json.Unmarshal(b, &s); err != nil {
-			return err
-		}
-		p["_string_"] = s
-	}
-
-	e.parts = p
-	return nil
-}
-
-func (e *StringMap) IsEmpty() bool {
-	if e == nil || len(e.parts) == 0 {
-		return true
-	}
-
-	return false
-}
-
-func (e *StringMap) IsString() bool {
-	if e.IsEmpty() || len(e.parts) != 1 {
-		return false
-	}
-
-	_, ok := e.parts["_string_"]
-	return ok
-}
-
-func (e *StringMap) String() string {
-	if e.IsEmpty() || !e.IsString() {
-		return ""
-	}
-
-	return e.parts["_string_"]
-}
-
-func (e *StringMap) Map() map[string]string {
-	if e.IsEmpty() || e.IsString() {
-		return map[string]string{}
-	}
-
-	return e.parts
-}
-
-type PluginArgs struct {
-	Key         string    `json:"access_key"`
-	Secret      string    `json:"secret_key"`
-	Bucket      string    `json:"bucket"`
-	Region      string    `json:"region"`
-	Source      string    `json:"source"`
-	Target      string    `json:"target"`
-	Delete      bool      `json:"delete"`
-	Access      StringMap `json:"acl"`
-	ContentType StringMap `json:"content_type"`
-}
-
-func NewClient(vargs PluginArgs) AWS {
-	sess := session.New(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(vargs.Key, vargs.Secret, ""),
-		Region: aws.String(vargs.Region),
-	})
-	client := s3.New(sess)
-	uploader := s3manager.NewUploader(sess)
-	remote := make([]string, 1, 1)
-	local := make([]string, 1, 1)
-
-	a := AWS{client, uploader, remote, local, vargs}
-	return a
-}
-
-func (a *AWS) visit(path string, info os.FileInfo, err error) error {
-	if err != nil {
-		return err
-	}
-
-	if path == "." {
-		return nil
-	}
-
-	if info.IsDir() {
-		return nil
-	}
-
-	localPath := strings.TrimPrefix(path, a.vargs.Source)
-	if strings.HasPrefix(localPath, "/") {
-		localPath = localPath[1:]
-	}
-
-	a.local = append(a.local, localPath)
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	defer file.Close()
-
-	access := ""
-	if a.vargs.Access.IsString() {
-		access = a.vargs.Access.String()
-	} else if !a.vargs.Access.IsEmpty() {
-		accessMap := a.vargs.Access.Map()
-		for pattern := range accessMap {
-			if match, _ := filepath.Match(pattern, localPath); match == true {
-				access = accessMap[pattern]
-				break
-			}
-		}
-	}
-
-	if access == "" {
-		access = "private"
-	}
-
-	fileExt := filepath.Ext(localPath)
-	var contentType string
-	if a.vargs.ContentType.IsString() {
-		contentType = a.vargs.ContentType.String()
-	} else if !a.vargs.ContentType.IsEmpty() {
-		contentMap := a.vargs.ContentType.Map()
-		for patternExt := range contentMap {
-			if patternExt == fileExt {
-				contentType = contentMap[patternExt]
-				break
-			}
-		}
-	}
-
-	if contentType == "" {
-		contentType = mime.TypeByExtension(fileExt)
-	}
-
-	fmt.Printf("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"\n", localPath, contentType, access)
-	_, err = a.uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String(a.vargs.Bucket),
-		Key: aws.String(filepath.Join(a.vargs.Target, localPath)),
-		Body: file,
-		ContentType: aws.String(contentType),
-		ACL: aws.String(access),
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (a *AWS) List(path string) (*s3.ListObjectsOutput, error) {
-	return a.client.ListObjects(&s3.ListObjectsInput{
-		Bucket: aws.String(a.vargs.Bucket),
-		Prefix: aws.String(path),
-	})
-}
-
-func (a *AWS) Cleanup() error {
-	for _, remote := range a.remote {
-		found := false
-		for _, local := range a.local {
-			if local == remote {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			fmt.Printf("Removing remote file \"%s\"\n", remote)
-			_, err := a.client.DeleteObject(&s3.DeleteObjectInput{
-				Bucket: aws.String(a.vargs.Bucket),
-				Key: aws.String(remote),
-			})
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
 
 func main() {
 	vargs := PluginArgs{}
@@ -242,16 +38,11 @@ func main() {
 		vargs.Target = vargs.Target[1:]
 	}
 
-	client := NewClient(vargs)
-
-	resp, err := client.List(vargs.Target)
+	client := NewAWS(vargs)
+	err := client.List(vargs.Target)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
-	}
-
-	for _, item := range resp.Contents {
-		client.remote = append(client.remote, *item.Key)
 	}
 
 	err = filepath.Walk(vargs.Source, client.visit)
@@ -266,5 +57,11 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+	}
+}
+
+func debug(format string, args ...interface{}) {
+	if os.Getenv("DEBUG") != "" {
+		fmt.Printf(format, args...)
 	}
 }

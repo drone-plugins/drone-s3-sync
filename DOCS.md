@@ -8,7 +8,8 @@ Use the S3 sync plugin to synchronize files and folders with an Amazon S3 bucket
 * `source` - location of folder to sync
 * `target` - target folder in your S3 bucket
 * `delete` - deletes files in the target not found in the source
-* `content_type` - override default mime-tpyes to use this value
+* `content_type` - override default mime-types to use this value
+* `metadata` - set custom metadata
 
 The following is a sample S3 configuration in your .drone.yml file:
 
@@ -46,6 +47,43 @@ publish:
     delete: true
 ```
 
-In the case of `acl` the key of the map is a glob as matched by [filepath.Match](https://golang.org/pkg/path/filepath/#Match). If there are no matches in your settings for a given file, the default is `"private"`.
+In the case of `acl` the key of the map is a glob. If there are no matches in your settings for a given file, the default is `"private"`.
 
 The `content_type` field the key is an extension including the leading dot `.`. If you want to set a content type for files with no extension, set the key to the empty string `""`. If there are no matches for the `content_type` of any file, one will automatically be determined for you.
+
+The `metadata` field can be set as either an object where the keys are the metadata headers:
+
+```yaml
+publish:
+  s3_sync:
+    acl: public-read
+    region: "us-east-1"
+    bucket: "my-bucket.s3-website-us-east-1.amazonaws.com"
+    access_key: "970d28f4dd477bc184fbd10b376de753"
+    secret_key: "9c5785d3ece6a9cdefa42eb99b58986f9095ff1c"
+    source: folder/to/archive
+    target: /target/location
+    delete: true
+    metadata:
+      Cache-Control: "max-age: 10000"
+```
+
+Or you can specify metadata for file patterns by using a glob:
+
+```yaml
+publish:
+  s3_sync:
+    acl: public-read
+    region: "us-east-1"
+    bucket: "my-bucket.s3-website-us-east-1.amazonaws.com"
+    access_key: "970d28f4dd477bc184fbd10b376de753"
+    secret_key: "9c5785d3ece6a9cdefa42eb99b58986f9095ff1c"
+    source: folder/to/archive
+    target: /target/location
+    delete: true
+    metadata:
+      "*.png":
+        Cache-Control: "max-age: 10000000"
+      "*.html":
+        Cache-Control: "max-age: 1000"
+```
