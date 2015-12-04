@@ -238,6 +238,7 @@ func (a *AWS) AddRedirects(redirects map[string]string) error {
 		_, err := a.client.PutObject(&s3.PutObjectInput{
 			Bucket: aws.String(a.vargs.Bucket),
 			Key:    aws.String(path),
+			ACL:    aws.String("public-read"),
 			WebsiteRedirectLocation: aws.String(location),
 		})
 
