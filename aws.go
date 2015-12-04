@@ -231,6 +231,24 @@ func (a *AWS) visit(path string, info os.FileInfo, err error) error {
 	return err
 }
 
+func (a *AWS) AddRedirects(redirects map[string]string) error {
+	for path, location := range redirects {
+		fmt.Printf("Adding redirect from \"%s\" to \"%s\"", path, location)
+		a.local = append(a.local, strings.TrimPrefix(path, "/"))
+		_, err := a.client.PutObject(&s3.PutObjectInput{
+			Bucket: aws.String(a.vargs.Bucket),
+			Key:    aws.String(path),
+			WebsiteRedirectLocation: aws.String(location),
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (a *AWS) List(path string) error {
 	resp, err := a.client.ListObjects(&s3.ListObjectsInput{
 		Bucket: aws.String(a.vargs.Bucket),

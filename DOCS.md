@@ -10,6 +10,7 @@ Use the S3 sync plugin to synchronize files and folders with an Amazon S3 bucket
 * `delete` - deletes files in the target not found in the source
 * `content_type` - override default mime-types to use this value
 * `metadata` - set custom metadata
+* `redirects` - targets that should redirect elsewhere
 
 The following is a sample S3 configuration in your .drone.yml file:
 
@@ -86,4 +87,21 @@ publish:
         Cache-Control: "max-age: 10000000"
       "*.html":
         Cache-Control: "max-age: 1000"
+```
+
+Additionally, you can specify redirect targets for files that don't exist by using the `redirects` key:
+
+```yaml
+publish:
+  s3_sync:
+    acl: public-read
+    region: "us-east-1"
+    bucket: "my-bucket.s3-website-us-east-1.amazonaws.com"
+    access_key: "970d28f4dd477bc184fbd10b376de753"
+    secret_key: "9c5785d3ece6a9cdefa42eb99b58986f9095ff1c"
+    source: folder/to/archive
+    target: /target/location
+    delete: true
+    redirects:
+      some/missing/file: /somewhere/that/actually/exists
 ```

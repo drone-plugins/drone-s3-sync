@@ -51,6 +51,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if len(vargs.Redirects) > 0 {
+		err = client.AddRedirects(vargs.Redirects)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
 	if vargs.Delete {
 		err = client.Cleanup()
 		if err != nil {
