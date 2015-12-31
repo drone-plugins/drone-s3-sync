@@ -117,7 +117,7 @@ func main() {
 	jobChan := make(chan struct{}, maxConcurrent)
 	results := make(chan *result, len(jobs))
 
-	fmt.Printf("Synchronizing with bucket \"%s\"", vargs.Bucket)
+	fmt.Printf("Synchronizing with bucket \"%s\"\n", vargs.Bucket)
 	for _, j := range jobs {
 		jobChan <- struct{}{}
 		go func(j job) {
@@ -138,7 +138,7 @@ func main() {
 	for _ = range jobs {
 		r := <-results
 		if r.err != nil {
-			fmt.Printf("ERROR: failed to %s %s to %s: %s\n", r.j.action, r.j.local, r.j.remote, r.err)
+			fmt.Printf("ERROR: failed to %s %s to %s: %+v\n", r.j.action, r.j.local, r.j.remote, r.err)
 			os.Exit(1)
 		}
 	}
