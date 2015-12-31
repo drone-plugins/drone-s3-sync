@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -98,112 +99,109 @@ func (a *AWS) Upload(local, remote string) error {
 		Bucket: aws.String(a.vargs.Bucket),
 		Key:    aws.String(remote),
 	})
-	if err != nil {
+	if err != nil && err.(awserr.Error).Code() != "404" {
+		if err.(awserr.Error).Code() == "404" {
+			return err
+		}
+
+		debug("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
+		_, err = a.client.PutObject(&s3.PutObjectInput{
+			Bucket:      aws.String(a.vargs.Bucket),
+			Key:         aws.String(remote),
+			Body:        file,
+			ContentType: aws.String(contentType),
+			ACL:         aws.String(access),
+			Metadata:    metadata,
+		})
 		return err
 	}
 
-	if head != nil {
-		hash := md5.New()
-		io.Copy(hash, file)
-		sum := fmt.Sprintf("\"%x\"", hash.Sum(nil))
+	hash := md5.New()
+	io.Copy(hash, file)
+	sum := fmt.Sprintf("\"%x\"", hash.Sum(nil))
 
-		if sum == *head.ETag {
-			shouldCopy := false
+	if sum == *head.ETag {
+		shouldCopy := false
 
-			if head.ContentType == nil && contentType != "" {
-				debug("Content-Type has changed from unset to %s", contentType)
-				shouldCopy = true
-			}
+		if head.ContentType == nil && contentType != "" {
+			debug("Content-Type has changed from unset to %s", contentType)
+			shouldCopy = true
+		}
 
-			if !shouldCopy && head.ContentType != nil && contentType != *head.ContentType {
-				debug("Content-Type has changed from %s to %s", *head.ContentType, contentType)
-				shouldCopy = true
-			}
+		if !shouldCopy && head.ContentType != nil && contentType != *head.ContentType {
+			debug("Content-Type has changed from %s to %s", *head.ContentType, contentType)
+			shouldCopy = true
+		}
 
-			if !shouldCopy && len(head.Metadata) != len(metadata) {
-				debug("Count of metadata values has changed for %s", local)
-				shouldCopy = true
-			}
+		if !shouldCopy && len(head.Metadata) != len(metadata) {
+			debug("Count of metadata values has changed for %s", local)
+			shouldCopy = true
+		}
 
-			if !shouldCopy && len(metadata) > 0 {
-				for k, v := range metadata {
-					if hv, ok := head.Metadata[k]; ok {
-						if *v != *hv {
-							debug("Metadata values have changed for %s", local)
-							shouldCopy = true
-							break
-						}
+		if !shouldCopy && len(metadata) > 0 {
+			for k, v := range metadata {
+				if hv, ok := head.Metadata[k]; ok {
+					if *v != *hv {
+						debug("Metadata values have changed for %s", local)
+						shouldCopy = true
+						break
 					}
 				}
 			}
+		}
 
-			if !shouldCopy {
-				grant, err := a.client.GetObjectAcl(&s3.GetObjectAclInput{
-					Bucket: aws.String(a.vargs.Bucket),
-					Key:    aws.String(remote),
-				})
-				if err != nil {
-					return err
-				}
-
-				previousAccess := "private"
-				for _, g := range grant.Grants {
-					gt := *g.Grantee
-					if gt.URI != nil {
-						if *gt.URI == "http://acs.amazonaws.com/groups/global/AllUsers" {
-							if *g.Permission == "READ" {
-								previousAccess = "public-read"
-							} else if *g.Permission == "WRITE" {
-								previousAccess = "public-read-write"
-							}
-						} else if *gt.URI == "http://acs.amazonaws.com/groups/global/AllUsers" {
-							if *g.Permission == "READ" {
-								previousAccess = "authenticated-read"
-							}
-						}
-					}
-				}
-
-				if previousAccess != access {
-					debug("Permissions for \"%s\" have changed from \"%s\" to \"%s\"", remote, previousAccess, access)
-					shouldCopy = true
-				}
-			}
-
-			if !shouldCopy {
-				debug("Skipping \"%s\" because hashes and metadata match", local)
-				return nil
-			}
-
-			debug("Updating metadata for \"%s\" Content-Type: \"%s\", ACL: \"%s\"", local, contentType, access)
-			_, err = a.client.CopyObject(&s3.CopyObjectInput{
-				Bucket:            aws.String(a.vargs.Bucket),
-				Key:               aws.String(remote),
-				CopySource:        aws.String(fmt.Sprintf("%s/%s", a.vargs.Bucket, remote)),
-				ACL:               aws.String(access),
-				ContentType:       aws.String(contentType),
-				Metadata:          metadata,
-				MetadataDirective: aws.String("REPLACE"),
+		if !shouldCopy {
+			grant, err := a.client.GetObjectAcl(&s3.GetObjectAclInput{
+				Bucket: aws.String(a.vargs.Bucket),
+				Key:    aws.String(remote),
 			})
-			return err
+			if err != nil {
+				return err
+			}
+
+			previousAccess := "private"
+			for _, g := range grant.Grants {
+				gt := *g.Grantee
+				if gt.URI != nil {
+					if *gt.URI == "http://acs.amazonaws.com/groups/global/AllUsers" {
+						if *g.Permission == "READ" {
+							previousAccess = "public-read"
+						} else if *g.Permission == "WRITE" {
+							previousAccess = "public-read-write"
+						}
+					} else if *gt.URI == "http://acs.amazonaws.com/groups/global/AllUsers" {
+						if *g.Permission == "READ" {
+							previousAccess = "authenticated-read"
+						}
+					}
+				}
+			}
+
+			if previousAccess != access {
+				debug("Permissions for \"%s\" have changed from \"%s\" to \"%s\"", remote, previousAccess, access)
+				shouldCopy = true
+			}
 		}
 
-		_, err = file.Seek(0, 0)
-		if err != nil {
-			return err
+		if !shouldCopy {
+			debug("Skipping \"%s\" because hashes and metadata match", local)
+			return nil
 		}
+
+		debug("Updating metadata for \"%s\" Content-Type: \"%s\", ACL: \"%s\"", local, contentType, access)
+		_, err = a.client.CopyObject(&s3.CopyObjectInput{
+			Bucket:            aws.String(a.vargs.Bucket),
+			Key:               aws.String(remote),
+			CopySource:        aws.String(fmt.Sprintf("%s/%s", a.vargs.Bucket, remote)),
+			ACL:               aws.String(access),
+			ContentType:       aws.String(contentType),
+			Metadata:          metadata,
+			MetadataDirective: aws.String("REPLACE"),
+		})
+		return err
 	}
 
-	debug("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
-	_, err = a.client.PutObject(&s3.PutObjectInput{
-		Bucket:      aws.String(a.vargs.Bucket),
-		Key:         aws.String(remote),
-		Body:        file,
-		ContentType: aws.String(contentType),
-		ACL:         aws.String(access),
-		Metadata:    metadata,
-	})
-	return err
+	return nil
 }
 
 func (a *AWS) Redirect(path, location string) error {
