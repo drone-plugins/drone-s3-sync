@@ -199,9 +199,18 @@ func (a *AWS) Upload(local, remote string) error {
 			MetadataDirective: aws.String("REPLACE"),
 		})
 		return err
+	} else {
+		debug("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
+		_, err = a.client.PutObject(&s3.PutObjectInput{
+			Bucket:      aws.String(a.vargs.Bucket),
+			Key:         aws.String(remote),
+			Body:        file,
+			ContentType: aws.String(contentType),
+			ACL:         aws.String(access),
+			Metadata:    metadata,
+		})
+		return err
 	}
-
-	return nil
 }
 
 func (a *AWS) Redirect(path, location string) error {
