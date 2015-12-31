@@ -94,13 +94,10 @@ func (a *AWS) Upload(local, remote string) error {
 		contentType = mime.TypeByExtension(fileExt)
 	}
 
-	head, err := a.client.HeadObject(&s3.HeadObjectInput{
+	head, _ := a.client.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(a.vargs.Bucket),
 		Key:    aws.String(remote),
 	})
-	if err != nil {
-		return err
-	}
 
 	if head != nil {
 		hash := md5.New()
