@@ -200,6 +200,11 @@ func (a *AWS) Upload(local, remote string) error {
 		})
 		return err
 	} else {
+		_, err = file.Seek(0, 0)
+		if err != nil {
+			return err
+		}
+
 		debug("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
 		_, err = a.client.PutObject(&s3.PutObjectInput{
 			Bucket:      aws.String(a.vargs.Bucket),
