@@ -205,7 +205,7 @@ func (a *AWS) Upload(local, remote string) error {
 }
 
 func (a *AWS) Redirect(path, location string) error {
-	debug("Adding redirect from \"%s\" to \"%s\"\n", path, location)
+	debug("Adding redirect from \"%s\" to \"%s\"", path, location)
 	_, err := a.client.PutObject(&s3.PutObjectInput{
 		Bucket: aws.String(a.vargs.Bucket),
 		Key:    aws.String(path),
@@ -216,7 +216,7 @@ func (a *AWS) Redirect(path, location string) error {
 }
 
 func (a *AWS) Delete(remote string) error {
-	debug("Removing remote file \"%s\"\n", remote)
+	debug("Removing remote file \"%s\"", remote)
 	_, err := a.client.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(a.vargs.Bucket),
 		Key:    aws.String(remote),
