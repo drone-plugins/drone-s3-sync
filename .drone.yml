@@ -1,28 +1,37 @@
 build:
   image: golang:1.5
   environment:
-    - GO15VENDOREXPERIMENT=1
-    - GOOS=linux
-    - GOARCH=amd64
     - CGO_ENABLED=0
   commands:
-    - go get
-    - go build
-    - go test
+    - make deps
+    - make vet
+    - make build
+    - make test
 
 publish:
+  coverage:
+    when:
+      branch: master
   docker:
-    username: drone
+    username: $$DOCKER_USER
     password: $$DOCKER_PASS
     email: $$DOCKER_EMAIL
     repo: plugins/drone-s3-sync
-    tag: native
+    tag: latest
     when:
-      branch: native
+      branch: master
+  docker:
+    username: $$DOCKER_USER
+    password: $$DOCKER_PASS
+    email: $$DOCKER_EMAIL
+    repo: plugins/drone-s3-sync
+    tag: develop
+    when:
+      branch: develop
 
 plugin:
   name: S3 Sync
-  desc: Syncs a directory with an Amazon S3 Bucket
+  desc: Sync a directory with an Amazon S3 Bucket
   type: publish
   image: plugins/drone-s3-sync
   labels:

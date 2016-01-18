@@ -23,7 +23,13 @@ type result struct {
 	err error
 }
 
+var (
+	buildDate string
+)
+
 func main() {
+	fmt.Printf("Drone S3 Sync Plugin built at %s\n", buildDate)
+
 	vargs := PluginArgs{}
 	workspace := drone.Workspace{}
 
