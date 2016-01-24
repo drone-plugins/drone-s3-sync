@@ -16,8 +16,9 @@ publish:
     password: $$DOCKER_PASS
     email: $$DOCKER_EMAIL
     repo: plugins/drone-s3-sync
+    tag: native
     when:
-      branch: master
+      branch: native
 
 plugin:
   name: S3 Sync

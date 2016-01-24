@@ -5,8 +5,7 @@
 
 FROM gliderlabs/alpine:3.1
 RUN apk add --update \
-	python \
-	py-pip \
-	&& pip install awscli
+  ca-certificates
 ADD drone-s3-sync /bin/
+ADD mime.types /etc/
 ENTRYPOINT ["/bin/drone-s3-sync"]

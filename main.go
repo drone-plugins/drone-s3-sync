@@ -3,159 +3,153 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 
-	"github.com/drone/drone-plugin-go/plugin"
+	"github.com/drone/drone-go/drone"
+	"github.com/drone/drone-go/plugin"
 )
 
-type S3 struct {
-	Key    string `json:"access_key"`
-	Secret string `json:"secret_key"`
-	Bucket string `json:"bucket"`
+const maxConcurrent = 100
 
-	// us-east-1
-	// us-west-1
-	// us-west-2
-	// eu-west-1
-	// ap-southeast-1
-	// ap-southeast-2
-	// ap-northeast-1
-	// sa-east-1
-	Region string `json:"region"`
+type job struct {
+	local  string
+	remote string
+	action string
+}
 
-	// Indicates the files ACL, which should be one
-	// of the following:
-	//     private
-	//     public-read
-	//     public-read-write
-	//     authenticated-read
-	//     bucket-owner-read
-	//     bucket-owner-full-control
-	Access string `json:"acl"`
-
-	// Copies the files from the specified directory.
-	// Regexp matching will apply to match multiple
-	// files
-	//
-	// Examples:
-	//    /path/to/file
-	//    /path/to/*.txt
-	//    /path/to/*/*.txt
-	//    /path/to/**
-	Source string `json:"source"`
-	Target string `json:"target"`
-
-	// Include or exclude all files or objects from the command
-	// that matches the specified pattern.
-	Include string `json:"include"`
-	Exclude string `json:"exclude"`
-
-	// Files that exist in the destination but not in the source
-	// are deleted during sync.
-	Delete bool `json:"delete"`
-
-	// Specify an explicit content type for this operation. This
-	// value overrides any guessed mime types.
-	ContentType string `json:"content_type"`
+type result struct {
+	j   job
+	err error
 }
 
 func main() {
-	workspace := plugin.Workspace{}
-	vargs := S3{}
+	vargs := PluginArgs{}
+	workspace := drone.Workspace{}
 
-	plugin.Param("workspace", &workspace)
 	plugin.Param("vargs", &vargs)
-	plugin.MustParse()
+	plugin.Param("workspace", &workspace)
+	if err := plugin.Parse(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	// skip if AWS key or SECRET are empty. A good example for this would
-	// be forks building a project. S3 might be configured in the source
-	// repo, but not in the fork
-	if len(vargs.Key) == 0 || len(vargs.Secret) == 0 {
+	if len(vargs.Key) == 0 || len(vargs.Secret) == 0 || len(vargs.Bucket) == 0 {
 		return
 	}
 
-	// make sure a default region is set
 	if len(vargs.Region) == 0 {
 		vargs.Region = "us-east-1"
 	}
 
-	// make sure a default access is set
-	// let's be conservative and assume private
-	if len(vargs.Access) == 0 {
-		vargs.Access = "private"
-	}
-
-	// make sure a default source is set
 	if len(vargs.Source) == 0 {
 		vargs.Source = "."
 	}
+	vargs.Source = filepath.Join(workspace.Path, vargs.Source)
 
-	// if the target starts with a "/" we need
-	// to remove it, otherwise we might adding
-	// a 3rd slash to s3://
 	if strings.HasPrefix(vargs.Target, "/") {
 		vargs.Target = vargs.Target[1:]
 	}
-	vargs.Target = fmt.Sprintf("s3://%s/%s", vargs.Bucket, vargs.Target)
 
-	cmd := command(vargs)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "AWS_ACCESS_KEY_ID="+vargs.Key)
-	cmd.Env = append(cmd.Env, "AWS_SECRET_ACCESS_KEY="+vargs.Secret)
-	cmd.Dir = workspace.Path
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	trace(cmd)
-
-	// run the command and exit if failed.
-	err := cmd.Run()
+	client := NewAWS(vargs)
+	remote, err := client.List(vargs.Target)
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	local := make([]string, 1, 1)
+	jobs := make([]job, 1, 1)
+	err = filepath.Walk(vargs.Source, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+
+		localPath := path
+		if vargs.Source != "." {
+			localPath = strings.TrimPrefix(path, vargs.Source)
+			if strings.HasPrefix(localPath, "/") {
+				localPath = localPath[1:]
+			}
+		}
+		local = append(local, localPath)
+		jobs = append(jobs, job{
+			local:  filepath.Join(vargs.Source, localPath),
+			remote: filepath.Join(vargs.Target, localPath),
+			action: "upload",
+		})
+
+		return nil
+	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	for path, location := range vargs.Redirects {
+		path = strings.TrimPrefix(path, "/")
+		local = append(local, path)
+		jobs = append(jobs, job{
+			local:  path,
+			remote: location,
+			action: "redirect",
+		})
+	}
+
+	for _, r := range remote {
+		found := false
+		for _, l := range local {
+			if l == r {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			jobs = append(jobs, job{
+				local:  "",
+				remote: r,
+				action: "delete",
+			})
+		}
+	}
+
+	jobChan := make(chan struct{}, maxConcurrent)
+	results := make(chan *result, len(jobs))
+
+	fmt.Printf("Synchronizing with bucket \"%s\"\n", vargs.Bucket)
+	for _, j := range jobs {
+		jobChan <- struct{}{}
+		go func(j job) {
+			if j.action == "upload" {
+				err = client.Upload(j.local, j.remote)
+			} else if j.action == "redirect" {
+				err = client.Redirect(j.local, j.remote)
+			} else if j.action == "delete" && vargs.Delete {
+				err = client.Delete(j.remote)
+			} else {
+				err = nil
+			}
+			results <- &result{j, err}
+			<-jobChan
+		}(j)
+	}
+
+	for _ = range jobs {
+		r := <-results
+		if r.err != nil {
+			fmt.Printf("ERROR: failed to %s %s to %s: %+v\n", r.j.action, r.j.local, r.j.remote, r.err)
+			os.Exit(1)
+		}
+	}
+
+	fmt.Println("done!")
 }
 
-// command is a helper function that returns the command
-// and arguments to upload to aws from the command line.
-func command(s S3) *exec.Cmd {
-
-	// command line args
-	args := []string{
-		"s3",
-		"sync",
-		s.Source,
-		s.Target,
-		"--acl",
-		s.Access,
-		"--region",
-		s.Region,
+func debug(format string, args ...interface{}) {
+	if os.Getenv("DEBUG") != "" {
+		fmt.Printf(format+"\n", args...)
+	} else {
+		fmt.Printf(".")
 	}
-
-	// append delete flag if specified
-	if s.Delete {
-		args = append(args, "--delete")
-	}
-	// appends exclude flag if specified
-	if len(s.Exclude) != 0 {
-		args = append(args, "--exclude")
-		args = append(args, s.Exclude)
-	}
-	// append include flag if specified
-	if len(s.Include) != 0 {
-		args = append(args, "--include")
-		args = append(args, s.Include)
-	}
-	// appends content-type if specified
-	if len(s.ContentType) != 0 {
-		args = append(args, "--content-type")
-		args = append(args, s.ContentType)
-	}
-
-	return exec.Command("aws", args...)
-}
-
-// trace writes each command to standard error (preceded by a ‘$ ’) before it
-// is executed. Used for debugging your build.
-func trace(cmd *exec.Cmd) {
-	fmt.Println("$", strings.Join(cmd.Args, " "))
 }
