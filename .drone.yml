@@ -2,6 +2,7 @@ build:
   image: golang:1.5
   environment:
     - CGO_ENABLED=0
+    - GO15VENDOREXPERIMENT=1
   commands:
     - make deps
     - make vet
