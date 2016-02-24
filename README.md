@@ -4,7 +4,7 @@
 [![Coverage Status](https://aircover.co/badges/drone-plugins/drone-s3-sync/coverage.svg)](https://aircover.co/drone-plugins/drone-s3-sync)
 [![](https://badge.imagelayers.io/plugins/drone-s3-sync:latest.svg)](https://imagelayers.io/?images=plugins/drone-s3-sync:latest 'Get your own badge on imagelayers.io')
 
-Drone plugin to synchronize a directory with an Amazon S3 Bucket
+Drone plugin to synchronize a directory with an Amazon S3 Bucket. For the usage information and a listing of the available options please take a look at [the docs](DOCS.md).
 
 ## Binary
 

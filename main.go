@@ -24,11 +24,11 @@ type result struct {
 }
 
 var (
-	buildDate string
+	buildCommit string
 )
 
 func main() {
-	fmt.Printf("Drone S3 Sync Plugin built at %s\n", buildDate)
+	fmt.Printf("Drone S3 Sync Plugin built from %s\n", buildCommit)
 
 	vargs := PluginArgs{}
 	workspace := drone.Workspace{}
