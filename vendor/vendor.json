@@ -135,6 +135,11 @@
 			"revisionTime": "2014-06-17T10:15:57-07:00"
 		},
 		{
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "6fe211e493929a8aac0469b93f28b1d0688a9a3a",
+			"revisionTime": "2016-03-05T16:54:46Z"
+		},
+		{
 			"path": "golang.org/x/net/context",
 			"revision": "6ccd6698c634f5d835c40c1c31848729e0cecda1",
 			"revisionTime": "2016-02-02T14:37:19-08:00"
