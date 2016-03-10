@@ -3,17 +3,18 @@ package main
 import "encoding/json"
 
 type PluginArgs struct {
-	Key         string            `json:"access_key"`
-	Secret      string            `json:"secret_key"`
-	Bucket      string            `json:"bucket"`
-	Region      string            `json:"region"`
-	Source      string            `json:"source"`
-	Target      string            `json:"target"`
-	Delete      bool              `json:"delete"`
-	Access      StringMap         `json:"acl"`
-	ContentType StringMap         `json:"content_type"`
-	Metadata    DeepStringMap     `json:"metadata"`
-	Redirects   map[string]string `json:"redirects"`
+	Key                    string            `json:"access_key"`
+	Secret                 string            `json:"secret_key"`
+	Bucket                 string            `json:"bucket"`
+	Region                 string            `json:"region"`
+	Source                 string            `json:"source"`
+	Target                 string            `json:"target"`
+	Delete                 bool              `json:"delete"`
+	Access                 StringMap         `json:"acl"`
+	ContentType            StringMap         `json:"content_type"`
+	Metadata               DeepStringMap     `json:"metadata"`
+	Redirects              map[string]string `json:"redirects"`
+	CloudFrontDistribution string            `json:"cloudfront_distribution_id"`
 }
 
 type DeepStringMap struct {

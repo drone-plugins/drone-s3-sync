@@ -120,6 +120,14 @@ func main() {
 		}
 	}
 
+	if len(vargs.CloudFrontDistribution) > 0 {
+		jobs = append(jobs, job{
+			local:  "",
+			remote: filepath.Join("/", vargs.Target, "*"),
+			action: "invalidateCloudFront",
+		})
+	}
+
 	jobChan := make(chan struct{}, maxConcurrent)
 	results := make(chan *result, len(jobs))
 
@@ -133,6 +141,8 @@ func main() {
 				err = client.Redirect(j.local, j.remote)
 			} else if j.action == "delete" && vargs.Delete {
 				err = client.Delete(j.remote)
+			} else if j.action == "invalidateCloudFront" {
+				client.Invalidate(j.remote)
 			} else {
 				err = nil
 			}
