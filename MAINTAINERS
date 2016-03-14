@@ -31,10 +31,7 @@
     name = "Aurélien Thieriot"
     email = "a.thieriot@gmail.com"
     login = "athieriot"
-  [people.ericanderson]
-    name = "Eric L Anderson"
-    email = "e@ericlanderson.com"
-    login = "ericanderson"
+
 [org]
   [org.core]
     people = [
@@ -45,6 +42,5 @@
       "msteinert",
       "nlf",
       "tboerger",
-      "athieriot",
-      "ericanderson"
+      "athieriot"
     ]
