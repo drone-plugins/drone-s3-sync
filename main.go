@@ -54,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-    a.createClient()
+	a.createClient()
 
 	a.createSyncJobs()
 	a.createInvalidateJob()
@@ -74,7 +74,7 @@ func newApp() *app {
 func (a *app) loadVargs() error {
 	plugin.Param("vargs", a.vargs)
 	plugin.Param("workspace", a.workspace)
-    
+
 	err := plugin.Parse()
 	return err
 
@@ -153,25 +153,25 @@ func (a *app) createSyncJobs() {
 			action: "redirect",
 		})
 	}
-    if (a.vargs.Delete) {
-        for _, r := range remote {
-            found := false
-            for _, l := range local {
-                if l == r {
-                    found = true
-                    break
-                }
-            }
+	if a.vargs.Delete {
+		for _, r := range remote {
+			found := false
+			for _, l := range local {
+				if l == r {
+					found = true
+					break
+				}
+			}
 
-            if !found {
-                a.jobs = append(a.jobs, job{
-                    local:  "",
-                    remote: r,
-                    action: "delete",
-                })
-            }
-        }
-    }
+			if !found {
+				a.jobs = append(a.jobs, job{
+					local:  "",
+					remote: r,
+					action: "delete",
+				})
+			}
+		}
+	}
 }
 
 func (a *app) createInvalidateJob() {
@@ -189,6 +189,7 @@ func (a *app) runJobs() {
 	client := a.client
 	jobChan := make(chan struct{}, maxConcurrent)
 	results := make(chan *result, len(a.jobs))
+	var invalidateJob *job
 
 	fmt.Printf("Synchronizing with bucket \"%s\"\n", vargs.Bucket)
 	for _, j := range a.jobs {
@@ -202,7 +203,8 @@ func (a *app) runJobs() {
 			} else if j.action == "delete" {
 				err = client.Delete(j.remote)
 			} else if j.action == "invalidateCloudFront" {
-				client.Invalidate(j.remote)
+				invalidateJob = &j
+				// err = client.Invalidate(j.remote)
 			} else {
 				err = nil
 			}
@@ -215,6 +217,14 @@ func (a *app) runJobs() {
 		r := <-results
 		if r.err != nil {
 			fmt.Printf("ERROR: failed to %s %s to %s: %+v\n", r.j.action, r.j.local, r.j.remote, r.err)
+			os.Exit(1)
+		}
+	}
+
+	if invalidateJob != nil {
+		err := client.Invalidate(invalidateJob.remote)
+		if err != nil {
+			fmt.Printf("ERROR: failed to %s %s to %s: %+v\n", invalidateJob.action, invalidateJob.local, invalidateJob.remote, err)
 			os.Exit(1)
 		}
 	}
