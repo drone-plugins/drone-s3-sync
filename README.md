@@ -35,7 +35,7 @@ make deps build
         "finished_at": 1421029813,
         "message": "Update the Readme",
         "author": "johnsmith",
-        "author_email": "john.smith@gmail.com"
+        "author_email": "john.smith@gmail.com",
         "event": "push",
         "branch": "master",
         "commit": "436b7a6e2abaddfd35740527353e78a227ddcb2c",
@@ -53,7 +53,8 @@ make deps build
         "secret_key": "9c5785d3ece6a9cdefa42eb99b58986f9095ff1c",
         "source": "folder/to/archive",
         "target": "/target/location",
-        "delete": true
+        "delete": true,
+        "cloudfront_distribution_id": "E16G5UJABCDAGDL"
     }
 }
 EOF

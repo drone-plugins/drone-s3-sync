@@ -7,20 +7,23 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudFront"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/ryanuber/go-glob"
 )
 
 type AWS struct {
-	client *s3.S3
-	remote []string
-	local  []string
-	vargs  PluginArgs
+	client   *s3.S3
+	cfClient *cloudfront.CloudFront
+	remote   []string
+	local    []string
+	vargs    PluginArgs
 }
 
 func NewAWS(vargs PluginArgs) AWS {
@@ -29,10 +32,11 @@ func NewAWS(vargs PluginArgs) AWS {
 		Region:      aws.String(vargs.Region),
 	})
 	c := s3.New(sess)
+	cf := cloudfront.New(sess)
 	r := make([]string, 1, 1)
 	l := make([]string, 1, 1)
 
-	return AWS{c, r, l, vargs}
+	return AWS{c, cf, r, l, vargs}
 }
 
 func (a *AWS) Upload(local, remote string) error {
@@ -269,4 +273,21 @@ func (a *AWS) List(path string) ([]string, error) {
 	}
 
 	return remote, nil
+}
+
+func (a *AWS) Invalidate(invalidatePath string) error {
+	debug("Invalidating \"%s\"", invalidatePath)
+	_, err := a.cfClient.CreateInvalidation(&cloudfront.CreateInvalidationInput{
+		DistributionId: aws.String(a.vargs.CloudFrontDistribution),
+		InvalidationBatch: &cloudfront.InvalidationBatch{
+			CallerReference: aws.String(time.Now().Format(time.RFC3339Nano)),
+			Paths: &cloudfront.Paths{
+				Quantity: aws.Int64(1),
+				Items: []*string{
+					aws.String(invalidatePath),
+				},
+			},
+		},
+	})
+	return err
 }

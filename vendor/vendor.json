@@ -68,6 +68,11 @@
 			"revisionTime": "2016-01-21T13:38:05-08:00"
 		},
 		{
+			"path": "github.com/aws/aws-sdk-go/private/protocol",
+			"revision": "996f601d8198d4fdc49bb5d93c73f27a6bdfe900",
+			"revisionTime": "2016-03-09T12:56:27-08:00"
+		},
+		{
 			"path": "github.com/aws/aws-sdk-go/private/protocol/query",
 			"revision": "f22f230de2ce5d5bd15c415fb72d30a77931ac56",
 			"revisionTime": "2016-01-21T13:38:05-08:00"
@@ -79,13 +84,13 @@
 		},
 		{
 			"path": "github.com/aws/aws-sdk-go/private/protocol/rest",
-			"revision": "f22f230de2ce5d5bd15c415fb72d30a77931ac56",
-			"revisionTime": "2016-01-21T13:38:05-08:00"
+			"revision": "996f601d8198d4fdc49bb5d93c73f27a6bdfe900",
+			"revisionTime": "2016-03-09T12:56:27-08:00"
 		},
 		{
 			"path": "github.com/aws/aws-sdk-go/private/protocol/restxml",
-			"revision": "f22f230de2ce5d5bd15c415fb72d30a77931ac56",
-			"revisionTime": "2016-01-21T13:38:05-08:00"
+			"revision": "996f601d8198d4fdc49bb5d93c73f27a6bdfe900",
+			"revisionTime": "2016-03-09T12:56:27-08:00"
 		},
 		{
 			"path": "github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil",
@@ -101,6 +106,11 @@
 			"path": "github.com/aws/aws-sdk-go/private/waiter",
 			"revision": "f22f230de2ce5d5bd15c415fb72d30a77931ac56",
 			"revisionTime": "2016-01-21T13:38:05-08:00"
+		},
+		{
+			"path": "github.com/aws/aws-sdk-go/service/cloudFront",
+			"revision": "996f601d8198d4fdc49bb5d93c73f27a6bdfe900",
+			"revisionTime": "2016-03-09T12:56:27-08:00"
 		},
 		{
 			"path": "github.com/aws/aws-sdk-go/service/s3",
@@ -123,6 +133,11 @@
 			"path": "github.com/ryanuber/go-glob",
 			"revision": "0067a9abd927e50aed5190662702f81231413ae0",
 			"revisionTime": "2014-06-17T10:15:57-07:00"
+		},
+		{
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "6fe211e493929a8aac0469b93f28b1d0688a9a3a",
+			"revisionTime": "2016-03-05T16:54:46Z"
 		},
 		{
 			"path": "golang.org/x/net/context",
