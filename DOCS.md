@@ -11,6 +11,7 @@ Use the S3 sync plugin to synchronize files and folders with an Amazon S3 bucket
 * `content_type` - override default mime-types to use this value
 * `metadata` - set custom metadata
 * `redirects` - targets that should redirect elsewhere
+* `cloudfront_distribution_id` - (optional) the cloudfront distribution id to invalidate after syncing
 
 The following is a sample S3 configuration in your .drone.yml file:
 
@@ -25,6 +26,7 @@ publish:
     source: folder/to/archive
     target: /target/location
     delete: true
+    cloudfront_distribution_id: "9c5785d3ece6a9cdefa4"
 ```
 
 Both `acl` and `content_type` can be passed as a string value to apply to all files, or as a map to apply to a subset of files.
