@@ -12,6 +12,7 @@ type PluginArgs struct {
 	Delete                 bool              `json:"delete"`
 	Access                 StringMap         `json:"acl"`
 	ContentType            StringMap         `json:"content_type"`
+	ContentEncoding        StringMap         `json:"content_encoding"`
 	Metadata               DeepStringMap     `json:"metadata"`
 	Redirects              map[string]string `json:"redirects"`
 	CloudFrontDistribution string            `json:"cloudfront_distribution_id"`

@@ -69,6 +69,7 @@ func (a *AWS) Upload(local, remote string) error {
 	}
 
 	fileExt := filepath.Ext(local)
+
 	var contentType string
 	if a.vargs.ContentType.IsString() {
 		contentType = a.vargs.ContentType.String()
@@ -77,6 +78,33 @@ func (a *AWS) Upload(local, remote string) error {
 		for patternExt := range contentMap {
 			if patternExt == fileExt {
 				contentType = contentMap[patternExt]
+				break
+			}
+		}
+	}
+
+
+
+	/*
+		Set content encoding in s3 while upload.
+		Use: PutObjectInput->ContentEncoding(string)
+		Works only with files containing an extension with a single dot like ".tgz" not ".tar.gz".
+		- usage
+		publish:
+  			s3_sync:
+				content_encoding:
+      				".jgz": gzip
+      				".cgz": gzip
+      				".tgz": gzip
+	*/
+	var contentEncoding string
+	if a.vargs.ContentEncoding.IsString() {
+		contentEncoding = a.vargs.ContentEncoding.String()
+	} else if !a.vargs.ContentEncoding.IsEmpty() {
+		contentMap := a.vargs.ContentEncoding.Map()
+		for patternExt := range contentMap {
+			if patternExt == fileExt {
+				contentEncoding = contentMap[patternExt]
 				break
 			}
 		}
@@ -103,6 +131,7 @@ func (a *AWS) Upload(local, remote string) error {
 		Bucket: aws.String(a.vargs.Bucket),
 		Key:    aws.String(remote),
 	})
+
 	if err != nil && err.(awserr.Error).Code() != "404" {
 		if err.(awserr.Error).Code() == "404" {
 			return err
@@ -114,11 +143,13 @@ func (a *AWS) Upload(local, remote string) error {
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
+			ContentEncoding: aws.String(contentEncoding),
 			ACL:         aws.String(access),
 			Metadata:    metadata,
 		})
 		return err
 	}
+
 
 	hash := md5.New()
 	io.Copy(hash, file)
@@ -134,6 +165,11 @@ func (a *AWS) Upload(local, remote string) error {
 
 		if !shouldCopy && head.ContentType != nil && contentType != *head.ContentType {
 			debug("Content-Type has changed from %s to %s", *head.ContentType, contentType)
+			shouldCopy = true
+		}
+
+		if !shouldCopy && contentEncoding != "" {
+			debug("Content-Encoding has changed from to %s", contentEncoding)
 			shouldCopy = true
 		}
 
@@ -188,8 +224,14 @@ func (a *AWS) Upload(local, remote string) error {
 		}
 
 		if !shouldCopy {
+
 			debug("Skipping \"%s\" because hashes and metadata match", local)
 			return nil
+		}
+
+		if contentEncoding != "" {
+			debug("Content-Encoding has changed from unset to %s", contentEncoding)
+			shouldCopy = true
 		}
 
 		debug("Updating metadata for \"%s\" Content-Type: \"%s\", ACL: \"%s\"", local, contentType, access)
@@ -199,6 +241,7 @@ func (a *AWS) Upload(local, remote string) error {
 			CopySource:        aws.String(fmt.Sprintf("%s/%s", a.vargs.Bucket, remote)),
 			ACL:               aws.String(access),
 			ContentType:       aws.String(contentType),
+			ContentEncoding:   aws.String(contentEncoding),
 			Metadata:          metadata,
 			MetadataDirective: aws.String("REPLACE"),
 		})
@@ -215,6 +258,7 @@ func (a *AWS) Upload(local, remote string) error {
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
+			ContentEncoding: aws.String(contentEncoding),
 			ACL:         aws.String(access),
 			Metadata:    metadata,
 		})
@@ -260,7 +304,7 @@ func (a *AWS) List(path string) ([]string, error) {
 		resp, err = a.client.ListObjects(&s3.ListObjectsInput{
 			Bucket: aws.String(a.vargs.Bucket),
 			Prefix: aws.String(path),
-			Marker: aws.String(remote[len(remote)-1]),
+			Marker: aws.String(remote[len(remote) - 1]),
 		})
 
 		if err != nil {
