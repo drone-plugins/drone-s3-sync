@@ -24,3 +24,4 @@ _testmain.go
 *.prof
 
 coverage.out
+drone-s3-sync
