@@ -82,6 +82,19 @@ func (a *AWS) Upload(local, remote string) error {
 		}
 	}
 
+	var contentEncoding string
+	if a.vargs.ContentEncoding.IsString() {
+		contentEncoding = a.vargs.ContentEncoding.String()
+	} else if !a.vargs.ContentEncoding.IsEmpty() {
+		encodingMap := a.vargs.ContentEncoding.Map()
+		for patternExt := range encodingMap {
+			if patternExt == fileExt {
+				contentEncoding = encodingMap[patternExt]
+				break
+			}
+		}
+	}
+
 	metadata := map[string]*string{}
 	vmap := a.vargs.Metadata.Map()
 	if len(vmap) > 0 {
@@ -108,15 +121,21 @@ func (a *AWS) Upload(local, remote string) error {
 			return err
 		}
 
-		debug("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
-		_, err = a.client.PutObject(&s3.PutObjectInput{
+		debug("\"%s\" not found in bucket, uploading with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
+		var putObject = &s3.PutObjectInput{
 			Bucket:      aws.String(a.vargs.Bucket),
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
 			ACL:         aws.String(access),
 			Metadata:    metadata,
-		})
+		}
+
+		if(len(contentEncoding) > 0) {
+			putObject.ContentEncoding = aws.String(contentEncoding)
+		}
+
+		_, err = a.client.PutObject(putObject)
 		return err
 	}
 
@@ -134,6 +153,16 @@ func (a *AWS) Upload(local, remote string) error {
 
 		if !shouldCopy && head.ContentType != nil && contentType != *head.ContentType {
 			debug("Content-Type has changed from %s to %s", *head.ContentType, contentType)
+			shouldCopy = true
+		}
+
+		if !shouldCopy && head.ContentEncoding == nil && contentEncoding != "" {
+			debug("Content-Encoding has changed from unset to %s", contentEncoding)
+			shouldCopy = true
+		}
+
+		if !shouldCopy && head.ContentEncoding != nil && contentEncoding != *head.ContentEncoding {
+			debug("Content-Encoding has changed from %s to %s", *head.ContentEncoding, contentEncoding)
 			shouldCopy = true
 		}
 
@@ -193,7 +222,7 @@ func (a *AWS) Upload(local, remote string) error {
 		}
 
 		debug("Updating metadata for \"%s\" Content-Type: \"%s\", ACL: \"%s\"", local, contentType, access)
-		_, err = a.client.CopyObject(&s3.CopyObjectInput{
+		var copyObject = &s3.CopyObjectInput{
 			Bucket:            aws.String(a.vargs.Bucket),
 			Key:               aws.String(remote),
 			CopySource:        aws.String(fmt.Sprintf("%s/%s", a.vargs.Bucket, remote)),
@@ -201,7 +230,13 @@ func (a *AWS) Upload(local, remote string) error {
 			ContentType:       aws.String(contentType),
 			Metadata:          metadata,
 			MetadataDirective: aws.String("REPLACE"),
-		})
+		}
+
+		if(len(contentEncoding) > 0) {
+			copyObject.ContentEncoding = aws.String(contentEncoding)
+		}
+
+		_, err = a.client.CopyObject(copyObject)
 		return err
 	} else {
 		_, err = file.Seek(0, 0)
@@ -210,14 +245,20 @@ func (a *AWS) Upload(local, remote string) error {
 		}
 
 		debug("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
-		_, err = a.client.PutObject(&s3.PutObjectInput{
+		var putObject = &s3.PutObjectInput{
 			Bucket:      aws.String(a.vargs.Bucket),
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
 			ACL:         aws.String(access),
 			Metadata:    metadata,
-		})
+		}
+
+		if(len(contentEncoding) > 0){
+			putObject.ContentEncoding = aws.String(contentEncoding)
+		}
+
+		_, err = a.client.PutObject(putObject)
 		return err
 	}
 }
