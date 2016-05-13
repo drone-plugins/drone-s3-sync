@@ -118,6 +118,21 @@
 			"revisionTime": "2016-01-21T13:38:05-08:00"
 		},
 		{
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d",
+			"revisionTime": "2015-11-05T15:09:06-06:00"
+		},
+		{
+			"path": "github.com/drone/drone-go/drone",
+			"revision": "ab38cefd63183bbb1252fef0b2b8b410e4370fe1",
+			"revisionTime": "2016-03-31T17:54:51-07:00"
+		},
+		{
+			"path": "github.com/drone/drone-go/plugin",
+			"revision": "ab38cefd63183bbb1252fef0b2b8b410e4370fe1",
+			"revisionTime": "2016-03-31T17:54:51-07:00"
+		},
+		{
 			"origin": "github.com/aws/aws-sdk-go/vendor/github.com/go-ini/ini",
 			"path": "github.com/go-ini/ini",
 			"revision": "f22f230de2ce5d5bd15c415fb72d30a77931ac56",
@@ -128,6 +143,11 @@
 			"path": "github.com/jmespath/go-jmespath",
 			"revision": "f22f230de2ce5d5bd15c415fb72d30a77931ac56",
 			"revisionTime": "2016-01-21T13:38:05-08:00"
+		},
+		{
+			"path": "github.com/pmezard/go-difflib/difflib",
+			"revision": "792786c7400a136282c1664665ae0a8db921c6c2",
+			"revisionTime": "2016-01-10T11:55:54+01:00"
 		},
 		{
 			"path": "github.com/ryanuber/go-glob",

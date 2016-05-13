@@ -1,34 +1,23 @@
-build:
-  image: golang:1.5
-  environment:
-    - CGO_ENABLED=0
-    - GO15VENDOREXPERIMENT=1
-  commands:
-    - make deps
-    - make vet
-    - make build
-    - make test
+workspace:
+  base: /go
+  path: src/github.com/drone-plugins/drone-s3-sync
 
-publish:
-  coverage:
-    when:
-      branch: master
+pipeline:
+  build:
+    image: golang:1.6
+    environment:
+      - CGO_ENABLED=0
+    commands:
+      - make vet
+      - make build
+      - make test
+
   docker:
-    username: $$DOCKER_USER
-    password: $$DOCKER_PASS
-    email: $$DOCKER_EMAIL
     repo: plugins/drone-s3-sync
     tag: latest
     when:
       branch: master
-  docker:
-    username: $$DOCKER_USER
-    password: $$DOCKER_PASS
-    email: $$DOCKER_EMAIL
-    repo: plugins/drone-s3-sync
-    tag: develop
-    when:
-      branch: develop
+      event: push
 
 plugin:
   name: S3 Sync
