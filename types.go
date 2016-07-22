@@ -2,99 +2,68 @@ package main
 
 import "encoding/json"
 
-type PluginArgs struct {
-	Key                    string            `json:"access_key"`
-	Secret                 string            `json:"secret_key"`
-	Bucket                 string            `json:"bucket"`
-	Region                 string            `json:"region"`
-	Source                 string            `json:"source"`
-	Target                 string            `json:"target"`
-	Delete                 bool              `json:"delete"`
-	Access                 StringMap         `json:"acl"`
-	ContentType            StringMap         `json:"content_type"`
-	ContentEncoding        StringMap         `json:"content_encoding"`
-	Metadata               DeepStringMap     `json:"metadata"`
-	Redirects              map[string]string `json:"redirects"`
-	CloudFrontDistribution string            `json:"cloudfront_distribution_id"`
-}
-
-type DeepStringMap struct {
+type DeepStringMapFlag struct {
 	parts map[string]map[string]string
 }
 
-func (e *DeepStringMap) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 {
-		return nil
-	}
+func (d *DeepStringMapFlag) String() string {
+	return ""
+}
 
-	p := map[string]map[string]string{}
-	if err := json.Unmarshal(b, &p); err != nil {
-		s := map[string]string{}
-		if err := json.Unmarshal(b, &s); err != nil {
+func (d *DeepStringMapFlag) Get() map[string]map[string]string {
+	return d.parts
+}
+
+func (d *DeepStringMapFlag) Set(value string) error {
+	d.parts = map[string]map[string]string{}
+	err := json.Unmarshal([]byte(value), &d.parts)
+	if err != nil {
+		single := map[string]string{}
+		err := json.Unmarshal([]byte(value), &single)
+		if err != nil {
 			return err
 		}
-		p["*"] = s
+
+		d.parts["*"] = single
 	}
 
-	e.parts = p
 	return nil
 }
 
-func (e *DeepStringMap) Map() map[string]map[string]string {
-	return e.parts
-}
-
-type StringMap struct {
+type StringMapFlag struct {
 	parts map[string]string
 }
 
-func (e *StringMap) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 {
-		return nil
-	}
+func (s *StringMapFlag) String() string {
+	return ""
+}
 
-	p := map[string]string{}
-	if err := json.Unmarshal(b, &p); err != nil {
-		var s string
-		if err := json.Unmarshal(b, &s); err != nil {
-			return err
-		}
-		p["_string_"] = s
-	}
+func (s *StringMapFlag) Get() map[string]string {
+	return s.parts
+}
 
-	e.parts = p
+func (s *StringMapFlag) Set(value string) error {
+	s.parts = map[string]string{}
+	err := json.Unmarshal([]byte(value), &s.parts)
+	if err != nil {
+		s.parts["*"] = value
+	}
 	return nil
 }
 
-func (e *StringMap) IsEmpty() bool {
-	if e == nil || len(e.parts) == 0 {
-		return true
-	}
-
-	return false
+type MapFlag struct {
+	parts map[string]string
 }
 
-func (e *StringMap) IsString() bool {
-	if e.IsEmpty() || len(e.parts) != 1 {
-		return false
-	}
-
-	_, ok := e.parts["_string_"]
-	return ok
+func (m *MapFlag) String() string {
+	return ""
 }
 
-func (e *StringMap) String() string {
-	if e.IsEmpty() || !e.IsString() {
-		return ""
-	}
-
-	return e.parts["_string_"]
+func (m *MapFlag) Get() map[string]string {
+	return m.parts
 }
 
-func (e *StringMap) Map() map[string]string {
-	if e.IsEmpty() || e.IsString() {
-		return map[string]string{}
-	}
-
-	return e.parts
+func (m *MapFlag) Set(value string) error {
+	m.parts = map[string]string{}
+	return json.Unmarshal([]byte(value), &m.parts)
 }
