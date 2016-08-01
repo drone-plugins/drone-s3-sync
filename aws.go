@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudFront"
+	"github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/ryanuber/go-glob"
 )
@@ -23,23 +23,24 @@ type AWS struct {
 	cfClient *cloudfront.CloudFront
 	remote   []string
 	local    []string
-	vargs    PluginArgs
+	plugin   *Plugin
 }
 
-func NewAWS(vargs PluginArgs) AWS {
+func NewAWS(p *Plugin) AWS {
 	sess := session.New(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(vargs.Key, vargs.Secret, ""),
-		Region:      aws.String(vargs.Region),
+		Credentials: credentials.NewStaticCredentials(p.Key, p.Secret, ""),
+		Region:      aws.String(p.Region),
 	})
 	c := s3.New(sess)
 	cf := cloudfront.New(sess)
 	r := make([]string, 1, 1)
 	l := make([]string, 1, 1)
 
-	return AWS{c, cf, r, l, vargs}
+	return AWS{c, cf, r, l, p}
 }
 
 func (a *AWS) Upload(local, remote string) error {
+	p := a.plugin
 	if local == "" {
 		return nil
 	}
@@ -52,15 +53,10 @@ func (a *AWS) Upload(local, remote string) error {
 	defer file.Close()
 
 	access := ""
-	if a.vargs.Access.IsString() {
-		access = a.vargs.Access.String()
-	} else if !a.vargs.Access.IsEmpty() {
-		accessMap := a.vargs.Access.Map()
-		for pattern := range accessMap {
-			if match := glob.Glob(pattern, local); match == true {
-				access = accessMap[pattern]
-				break
-			}
+	for pattern := range p.Access {
+		if match := glob.Glob(pattern, local); match == true {
+			access = p.Access[pattern]
+			break
 		}
 	}
 
@@ -69,42 +65,12 @@ func (a *AWS) Upload(local, remote string) error {
 	}
 
 	fileExt := filepath.Ext(local)
+
 	var contentType string
-	if a.vargs.ContentType.IsString() {
-		contentType = a.vargs.ContentType.String()
-	} else if !a.vargs.ContentType.IsEmpty() {
-		contentMap := a.vargs.ContentType.Map()
-		for patternExt := range contentMap {
-			if patternExt == fileExt {
-				contentType = contentMap[patternExt]
-				break
-			}
-		}
-	}
-
-	var contentEncoding string
-	if a.vargs.ContentEncoding.IsString() {
-		contentEncoding = a.vargs.ContentEncoding.String()
-	} else if !a.vargs.ContentEncoding.IsEmpty() {
-		encodingMap := a.vargs.ContentEncoding.Map()
-		for patternExt := range encodingMap {
-			if patternExt == fileExt {
-				contentEncoding = encodingMap[patternExt]
-				break
-			}
-		}
-	}
-
-	metadata := map[string]*string{}
-	vmap := a.vargs.Metadata.Map()
-	if len(vmap) > 0 {
-		for pattern := range vmap {
-			if match := glob.Glob(pattern, local); match == true {
-				for k, v := range vmap[pattern] {
-					metadata[k] = aws.String(v)
-				}
-				break
-			}
+	for patternExt := range p.ContentType {
+		if patternExt == fileExt {
+			contentType = p.ContentType[patternExt]
+			break
 		}
 	}
 
@@ -112,8 +78,26 @@ func (a *AWS) Upload(local, remote string) error {
 		contentType = mime.TypeByExtension(fileExt)
 	}
 
+	var contentEncoding string
+	for patternExt := range p.ContentEncoding {
+		if patternExt == fileExt {
+			contentEncoding = p.ContentEncoding[patternExt]
+			break
+		}
+	}
+
+	metadata := map[string]*string{}
+	for pattern := range p.Metadata {
+		if match := glob.Glob(pattern, local); match == true {
+			for k, v := range p.Metadata[pattern] {
+				metadata[k] = aws.String(v)
+			}
+			break
+		}
+	}
+
 	head, err := a.client.HeadObject(&s3.HeadObjectInput{
-		Bucket: aws.String(a.vargs.Bucket),
+		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(remote),
 	})
 	if err != nil && err.(awserr.Error).Code() != "404" {
@@ -123,7 +107,7 @@ func (a *AWS) Upload(local, remote string) error {
 
 		debug("\"%s\" not found in bucket, uploading with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
 		var putObject = &s3.PutObjectInput{
-			Bucket:      aws.String(a.vargs.Bucket),
+			Bucket:      aws.String(p.Bucket),
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
@@ -131,7 +115,7 @@ func (a *AWS) Upload(local, remote string) error {
 			Metadata:    metadata,
 		}
 
-		if(len(contentEncoding) > 0) {
+		if len(contentEncoding) > 0 {
 			putObject.ContentEncoding = aws.String(contentEncoding)
 		}
 
@@ -185,7 +169,7 @@ func (a *AWS) Upload(local, remote string) error {
 
 		if !shouldCopy {
 			grant, err := a.client.GetObjectAcl(&s3.GetObjectAclInput{
-				Bucket: aws.String(a.vargs.Bucket),
+				Bucket: aws.String(p.Bucket),
 				Key:    aws.String(remote),
 			})
 			if err != nil {
@@ -223,16 +207,16 @@ func (a *AWS) Upload(local, remote string) error {
 
 		debug("Updating metadata for \"%s\" Content-Type: \"%s\", ACL: \"%s\"", local, contentType, access)
 		var copyObject = &s3.CopyObjectInput{
-			Bucket:            aws.String(a.vargs.Bucket),
+			Bucket:            aws.String(p.Bucket),
 			Key:               aws.String(remote),
-			CopySource:        aws.String(fmt.Sprintf("%s/%s", a.vargs.Bucket, remote)),
+			CopySource:        aws.String(fmt.Sprintf("%s/%s", p.Bucket, remote)),
 			ACL:               aws.String(access),
 			ContentType:       aws.String(contentType),
 			Metadata:          metadata,
 			MetadataDirective: aws.String("REPLACE"),
 		}
 
-		if(len(contentEncoding) > 0) {
+		if len(contentEncoding) > 0 {
 			copyObject.ContentEncoding = aws.String(contentEncoding)
 		}
 
@@ -246,7 +230,7 @@ func (a *AWS) Upload(local, remote string) error {
 
 		debug("Uploading \"%s\" with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
 		var putObject = &s3.PutObjectInput{
-			Bucket:      aws.String(a.vargs.Bucket),
+			Bucket:      aws.String(p.Bucket),
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
@@ -254,7 +238,7 @@ func (a *AWS) Upload(local, remote string) error {
 			Metadata:    metadata,
 		}
 
-		if(len(contentEncoding) > 0){
+		if len(contentEncoding) > 0 {
 			putObject.ContentEncoding = aws.String(contentEncoding)
 		}
 
@@ -264,9 +248,10 @@ func (a *AWS) Upload(local, remote string) error {
 }
 
 func (a *AWS) Redirect(path, location string) error {
+	p := a.plugin
 	debug("Adding redirect from \"%s\" to \"%s\"", path, location)
 	_, err := a.client.PutObject(&s3.PutObjectInput{
-		Bucket: aws.String(a.vargs.Bucket),
+		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(path),
 		ACL:    aws.String("public-read"),
 		WebsiteRedirectLocation: aws.String(location),
@@ -275,18 +260,20 @@ func (a *AWS) Redirect(path, location string) error {
 }
 
 func (a *AWS) Delete(remote string) error {
+	p := a.plugin
 	debug("Removing remote file \"%s\"", remote)
 	_, err := a.client.DeleteObject(&s3.DeleteObjectInput{
-		Bucket: aws.String(a.vargs.Bucket),
+		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(remote),
 	})
 	return err
 }
 
 func (a *AWS) List(path string) ([]string, error) {
+	p := a.plugin
 	remote := make([]string, 1, 1)
 	resp, err := a.client.ListObjects(&s3.ListObjectsInput{
-		Bucket: aws.String(a.vargs.Bucket),
+		Bucket: aws.String(p.Bucket),
 		Prefix: aws.String(path),
 	})
 	if err != nil {
@@ -299,7 +286,7 @@ func (a *AWS) List(path string) ([]string, error) {
 
 	for *resp.IsTruncated {
 		resp, err = a.client.ListObjects(&s3.ListObjectsInput{
-			Bucket: aws.String(a.vargs.Bucket),
+			Bucket: aws.String(p.Bucket),
 			Prefix: aws.String(path),
 			Marker: aws.String(remote[len(remote)-1]),
 		})
@@ -317,9 +304,10 @@ func (a *AWS) List(path string) ([]string, error) {
 }
 
 func (a *AWS) Invalidate(invalidatePath string) error {
+	p := a.plugin
 	debug("Invalidating \"%s\"", invalidatePath)
 	_, err := a.cfClient.CreateInvalidation(&cloudfront.CreateInvalidationInput{
-		DistributionId: aws.String(a.vargs.CloudFrontDistribution),
+		DistributionId: aws.String(p.CloudFrontDistribution),
 		InvalidationBatch: &cloudfront.InvalidationBatch{
 			CallerReference: aws.String(time.Now().Format(time.RFC3339Nano)),
 			Paths: &cloudfront.Paths{

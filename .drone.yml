@@ -1,16 +1,11 @@
 workspace:
   base: /go
-  path: src/github.com/drone-plugins/drone-s3-sync
 
 pipeline:
   build:
     image: golang:1.6
-    environment:
-      - CGO_ENABLED=0
     commands:
-      - make vet
-      - make build
-      - make test
+      - CGO_ENABLED=0 go build
 
   docker:
     repo: plugins/drone-s3-sync
