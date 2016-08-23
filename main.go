@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
 	"os"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/joho/godotenv"
 	"github.com/urfave/cli"
-	_ "github.com/joho/godotenv/autoload"
 )
 
 var version string // build number set at compile-time
@@ -90,14 +90,22 @@ func main() {
 			Usage:  "id of cloudfront distribution to invalidate",
 			EnvVar: "PLUGIN_CLOUDFRONT_DISTRIBUTION",
 		},
+		cli.StringFlag{
+			Name:  "env-file",
+			Usage: "source env file",
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 }
 
 func run(c *cli.Context) error {
+	if c.String("env-file") != "" {
+		_ = godotenv.Load(c.String("env-file"))
+	}
+
 	plugin := Plugin{
 		Key:                    c.String("access-key"),
 		Secret:                 c.String("secret-key"),
