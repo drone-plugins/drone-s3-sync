@@ -63,8 +63,8 @@ The `content_type` field the key is an extension including the leading dot `.`. 
 In the  `content_encoding` field the key is an extension including the leading dot `.`. If you want to set a encoding type for files with no extension, set the key
 to th empty string `""`. If there are no matches for the `content_encoding` of a file, no content-encoding header will be added.
 
-In the  `cache_control` field the key is an extension including the leading dot `.`. If you want to set cahce control for files with no extension, set the key
-to th empty string `""`. If there are no matches for the `cache_control` of a file, no cache-control header will be added.
+In the  `cache_control` field the key is an extension including the leading dot `.`. If you want to set cache control for files with no extension, set the key
+to the empty string `""`. If there are no matches for the `cache_control` of a file, no cache-control header will be added.
 
 The `metadata` field can be set as either an object where the keys are the metadata headers:
 
