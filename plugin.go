@@ -17,6 +17,7 @@ type Plugin struct {
 	Target                 string
 	Delete                 bool
 	Access                 map[string]string
+	CacheControl           map[string]string
 	ContentType            map[string]string
 	ContentEncoding        map[string]string
 	Metadata               map[string]map[string]string

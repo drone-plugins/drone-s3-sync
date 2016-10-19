@@ -52,7 +52,7 @@ func (a *AWS) Upload(local, remote string) error {
 
 	defer file.Close()
 
-	access := ""
+	var access string
 	for pattern := range p.Access {
 		if match := glob.Glob(pattern, local); match == true {
 			access = p.Access[pattern]
@@ -86,6 +86,14 @@ func (a *AWS) Upload(local, remote string) error {
 		}
 	}
 
+	var cacheControl string
+	for pattern := range p.CacheControl {
+		if match := glob.Glob(pattern, local); match == true {
+			cacheControl = p.CacheControl[pattern]
+			break
+		}
+	}
+
 	metadata := map[string]*string{}
 	for pattern := range p.Metadata {
 		if match := glob.Glob(pattern, local); match == true {
@@ -113,6 +121,10 @@ func (a *AWS) Upload(local, remote string) error {
 			ContentType: aws.String(contentType),
 			ACL:         aws.String(access),
 			Metadata:    metadata,
+		}
+
+		if len(cacheControl) > 0 {
+			putObject.CacheControl = aws.String(cacheControl)
 		}
 
 		if len(contentEncoding) > 0 {
@@ -147,6 +159,16 @@ func (a *AWS) Upload(local, remote string) error {
 
 		if !shouldCopy && head.ContentEncoding != nil && contentEncoding != *head.ContentEncoding {
 			debug("Content-Encoding has changed from %s to %s", *head.ContentEncoding, contentEncoding)
+			shouldCopy = true
+		}
+
+		if !shouldCopy && head.CacheControl == nil && cacheControl != "" {
+			debug("Cache-Control has changed from unset to %s", cacheControl)
+			shouldCopy = true
+		}
+
+		if !shouldCopy && head.CacheControl != nil && cacheControl != *head.CacheControl {
+			debug("Cache-Control has changed from %s to %s", *head.CacheControl, cacheControl)
 			shouldCopy = true
 		}
 
@@ -216,6 +238,10 @@ func (a *AWS) Upload(local, remote string) error {
 			MetadataDirective: aws.String("REPLACE"),
 		}
 
+		if len(cacheControl) > 0 {
+			copyObject.CacheControl = aws.String(cacheControl)
+		}
+
 		if len(contentEncoding) > 0 {
 			copyObject.ContentEncoding = aws.String(contentEncoding)
 		}
@@ -236,6 +262,10 @@ func (a *AWS) Upload(local, remote string) error {
 			ContentType: aws.String(contentType),
 			ACL:         aws.String(access),
 			Metadata:    metadata,
+		}
+
+		if len(cacheControl) > 0 {
+			putObject.CacheControl = aws.String(cacheControl)
 		}
 
 		if len(contentEncoding) > 0 {
