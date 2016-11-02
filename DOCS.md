@@ -10,6 +10,7 @@ Use the S3 sync plugin to synchronize files and folders with an Amazon S3 bucket
 * `delete` - deletes files in the target not found in the source
 * `content_type` - override default mime-types to use this value
 * `content_encoding` - override default content encoding header for files
+* `cache_control` - override default cache control header for files
 * `metadata` - set custom metadata
 * `redirects` - targets that should redirect elsewhere
 * `cloudfront_distribution_id` - (optional) the cloudfront distribution id to invalidate after syncing
@@ -30,7 +31,7 @@ publish:
     cloudfront_distribution_id: "9c5785d3ece6a9cdefa4"
 ```
 
-The `acl`, `content_type`, and `content_encoding` parameters can be passed as a string value to apply to all files, or as a map to apply to a subset of files.
+The `acl`, `content_type`, `cache_control`, and `content_encoding` parameters can be passed as a string value to apply to all files, or as a map to apply to a subset of files.
 
 For example:
 
@@ -45,6 +46,7 @@ publish:
     content_encoding:
       ".js": gzip
       ".css": gzip
+    cache_control: "public, max-age: 31536000"
     region: "us-east-1"
     bucket: "my-bucket.s3-website-us-east-1.amazonaws.com"
     access_key: "970d28f4dd477bc184fbd10b376de753"
@@ -61,6 +63,9 @@ The `content_type` field the key is an extension including the leading dot `.`. 
 In the  `content_encoding` field the key is an extension including the leading dot `.`. If you want to set a encoding type for files with no extension, set the key
 to th empty string `""`. If there are no matches for the `content_encoding` of a file, no content-encoding header will be added.
 
+In the  `cache_control` field the key is an extension including the leading dot `.`. If you want to set cache control for files with no extension, set the key
+to the empty string `""`. If there are no matches for the `cache_control` of a file, no cache-control header will be added.
+
 The `metadata` field can be set as either an object where the keys are the metadata headers:
 
 ```yaml
@@ -75,7 +80,7 @@ publish:
     target: /target/location
     delete: true
     metadata:
-      Cache-Control: "max-age: 10000"
+      custom-meta: "abc123"
 ```
 
 Or you can specify metadata for file patterns by using a glob:
@@ -93,9 +98,7 @@ publish:
     delete: true
     metadata:
       "*.png":
-        Cache-Control: "max-age: 10000000"
-      "*.html":
-        Cache-Control: "max-age: 1000"
+        CustomMeta: "abc123"
 ```
 
 Additionally, you can specify redirect targets for files that don't exist by using the `redirects` key:

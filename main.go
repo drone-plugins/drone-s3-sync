@@ -75,6 +75,12 @@ func main() {
 			Value:  &StringMapFlag{},
 		},
 		cli.GenericFlag{
+			Name:   "cache-control",
+			Usage:  "cache-control settings for uploads",
+			EnvVar: "PLUGIN_CACHE_CONTROL",
+			Value:  &StringMapFlag{},
+		},
+		cli.GenericFlag{
 			Name:   "metadata",
 			Usage:  "additional metadata for uploads",
 			EnvVar: "PLUGIN_METADATA",
@@ -116,6 +122,7 @@ func run(c *cli.Context) error {
 		Target:                 c.String("target"),
 		Delete:                 c.Bool("delete"),
 		Access:                 c.Generic("access").(*StringMapFlag).Get(),
+		CacheControl:           c.Generic("cache-control").(*StringMapFlag).Get(),
 		ContentType:            c.Generic("content-type").(*StringMapFlag).Get(),
 		ContentEncoding:        c.Generic("content-encoding").(*StringMapFlag).Get(),
 		Metadata:               c.Generic("metadata").(*DeepStringMapFlag).Get(),
