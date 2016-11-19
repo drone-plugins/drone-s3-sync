@@ -59,7 +59,7 @@ func main() {
 		cli.GenericFlag{
 			Name:   "access",
 			Usage:  "access control settings",
-			EnvVar: "PLUGIN_ACCESS",
+			EnvVar: "PLUGIN_ACCESS,PLUGIN_ACL",
 			Value:  &StringMapFlag{},
 		},
 		cli.GenericFlag{
