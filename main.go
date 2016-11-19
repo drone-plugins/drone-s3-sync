@@ -97,6 +97,11 @@ func main() {
 			Usage:  "id of cloudfront distribution to invalidate",
 			EnvVar: "PLUGIN_CLOUDFRONT_DISTRIBUTION",
 		},
+		cli.BoolFlag{
+			Name:   "dry-run",
+			Usage:  "dry run disables api calls",
+			EnvVar: "DRY_RUN,PLUGIN_DRY_RUN",
+		},
 		cli.StringFlag{
 			Name:  "env-file",
 			Usage: "source env file",
@@ -128,6 +133,7 @@ func run(c *cli.Context) error {
 		Metadata:               c.Generic("metadata").(*DeepStringMapFlag).Get(),
 		Redirects:              c.Generic("redirects").(*MapFlag).Get(),
 		CloudFrontDistribution: c.String("cloudfront-distribution"),
+		DryRun:                 c.Bool("dry-run"),
 	}
 
 	return plugin.Exec()

@@ -23,6 +23,7 @@ type Plugin struct {
 	Metadata               map[string]map[string]string
 	Redirects              map[string]string
 	CloudFrontDistribution string
+	DryRun                 bool
 	client                 AWS
 	jobs                   []job
 }

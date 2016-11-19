@@ -108,8 +108,8 @@ func (a *AWS) Upload(local, remote string) error {
 		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(remote),
 	})
-	if err != nil {
-		if err.(awserr.Error).Code() != "404" {
+	if err != nil && err.(awserr.Error).Code() != "404" {
+		if err.(awserr.Error).Code() == "404" {
 			return err
 		}
 
@@ -129,6 +129,11 @@ func (a *AWS) Upload(local, remote string) error {
 
 		if len(contentEncoding) > 0 {
 			putObject.ContentEncoding = aws.String(contentEncoding)
+		}
+
+		// skip upload during dry run
+		if a.plugin.DryRun {
+			return nil
 		}
 
 		_, err = a.client.PutObject(putObject)
@@ -246,6 +251,11 @@ func (a *AWS) Upload(local, remote string) error {
 			copyObject.ContentEncoding = aws.String(contentEncoding)
 		}
 
+		// skip update if dry run
+		if a.plugin.DryRun {
+			return nil
+		}
+
 		_, err = a.client.CopyObject(copyObject)
 		return err
 	} else {
@@ -272,6 +282,11 @@ func (a *AWS) Upload(local, remote string) error {
 			putObject.ContentEncoding = aws.String(contentEncoding)
 		}
 
+		// skip upload if dry run
+		if a.plugin.DryRun {
+			return nil
+		}
+
 		_, err = a.client.PutObject(putObject)
 		return err
 	}
@@ -280,6 +295,11 @@ func (a *AWS) Upload(local, remote string) error {
 func (a *AWS) Redirect(path, location string) error {
 	p := a.plugin
 	debug("Adding redirect from \"%s\" to \"%s\"", path, location)
+
+	if a.plugin.DryRun {
+		return nil
+	}
+
 	_, err := a.client.PutObject(&s3.PutObjectInput{
 		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(path),
@@ -292,6 +312,11 @@ func (a *AWS) Redirect(path, location string) error {
 func (a *AWS) Delete(remote string) error {
 	p := a.plugin
 	debug("Removing remote file \"%s\"", remote)
+
+	if a.plugin.DryRun {
+		return nil
+	}
+
 	_, err := a.client.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(remote),
