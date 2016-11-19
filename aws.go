@@ -108,8 +108,8 @@ func (a *AWS) Upload(local, remote string) error {
 		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(remote),
 	})
-	if err != nil && err.(awserr.Error).Code() != "404" {
-		if err.(awserr.Error).Code() == "404" {
+	if err != nil {
+		if err.(awserr.Error).Code() != "404" {
 			return err
 		}
 
