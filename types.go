@@ -1,6 +1,8 @@
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type DeepStringMapFlag struct {
 	parts map[string]map[string]string
