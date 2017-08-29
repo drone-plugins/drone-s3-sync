@@ -1,33 +1,96 @@
 workspace:
-  path: src/github.com/drone-plugins/drone-s3-sync
   base: /go
+  path: src/github.com/drone-plugins/drone-s3-sync
 
 pipeline:
   test:
-    image: golang:1.6
-    environment:
-      - CGO_ENABLED=0
+    image: golang:1.9
     commands:
       - go vet
       - go test -cover -coverprofile=coverage.out
-      - go build -ldflags "-s -w -X main.build=$DRONE_BUILD_NUMBER" -a -tags netgo
 
-  publish:
+  build_linux_amd64:
+    image: golang:1.9
+    group: build
+    environment:
+      - GOOS=linux
+      - GOARCH=amd64
+      - CGO_ENABLED=0
+    commands:
+      - go build -v -ldflags "-X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/amd64/drone-s3-sync
+
+  build_linux_arm64:
+    image: golang:1.9
+    group: build
+    environment:
+      - GOOS=linux
+      - GOARCH=arm64
+      - CGO_ENABLED=0
+    commands:
+      - go build -v -ldflags "-X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/arm64/drone-s3-sync
+
+  build_linux_arm:
+    image: golang:1.9
+    group: build
+    environment:
+      - GOOS=linux
+      - GOARCH=arm
+      - CGO_ENABLED=0
+      - GOARM=7
+    commands:
+      - go build -v -ldflags "-X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/arm/drone-s3-sync
+
+  # build_windows_amd64:
+  #   image: golang:1.9-nanoserver
+  #   group: build
+  #   environment:
+  #     - GOOS=windows
+  #     - GOARCH=amd64
+  #     - CGO_ENABLED=0
+  #   commands:
+  #     - go build -v -ldflags "-X main.build=${DRONE_BUILD_NUMBER}" -a -o release/windows/amd64/drone-s3-sync
+
+  publish_linux_amd64:
     image: plugins/docker
     repo: plugins/s3-sync
-    tags: [ "latest", "1.1", "1" ]
+    tags: [ latest, 1.1.0, 1.1, 1 ]
+    secrets: [ docker_username, docker_password ]
     when:
       branch: master
       event: push
 
-plugin:
-  name: S3 Sync
-  desc: Sync a directory with an Amazon S3 Bucket
-  type: publish
-  image: plugins/s3-sync
-  labels:
-    - publish
-    - artifacts
-    - amazon
-    - aws
-    - s3
+  publish_linux_arm64:
+    image: plugins/docker
+    repo: plugins/s3-sync
+    tags: [ linux-arm64 ]
+    secrets: [ docker_username, docker_password ]
+    dockerfile: Dockerfile.arm64
+    when:
+      branch: master
+      event: push
+
+  publish_linux_arm:
+    image: plugins/docker
+    repo: plugins/s3-sync
+    tags: [ linux-arm ]
+    secrets: [ docker_username, docker_password ]
+    dockerfile: Dockerfile.arm
+    when:
+      branch: master
+      event: push
+
+  # publish_windows_amd64:
+  #   image: plugins/docker
+  #   repo: plugins/s3-sync
+  #   tags: [ windows-amd64 ]
+  #   secrets: [ docker_username, docker_password ]
+  #   dockerfile: Dockerfile.windows
+  #   when:
+  #     branch: master
+  #     event: push
+
+  # microbadger:
+  #   image: plugins/webhook
+  #   secrets: [ webhook_url ]
+  #   when:
+  #     status: [ success ]
