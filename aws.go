@@ -7,6 +7,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -28,8 +29,11 @@ type AWS struct {
 
 func NewAWS(p *Plugin) AWS {
 	sess := session.New(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(p.Key, p.Secret, ""),
-		Region:      aws.String(p.Region),
+		Endpoint:         &p.Endpoint,
+		DisableSSL:       aws.Bool(strings.HasPrefix(p.Endpoint, "http://")),
+		Credentials:      credentials.NewStaticCredentials(p.Key, p.Secret, ""),
+		S3ForcePathStyle: aws.Bool(p.PathStyle),
+		Region:           aws.String(p.Region),
 	})
 	c := s3.New(sess)
 	cf := cloudfront.New(sess)

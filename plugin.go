@@ -9,6 +9,7 @@ import (
 )
 
 type Plugin struct {
+	Endpoint               string
 	Key                    string
 	Secret                 string
 	Bucket                 string
@@ -24,6 +25,7 @@ type Plugin struct {
 	Redirects              map[string]string
 	CloudFrontDistribution string
 	DryRun                 bool
+	PathStyle              bool
 	client                 AWS
 	jobs                   []job
 }

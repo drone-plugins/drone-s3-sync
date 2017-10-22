@@ -19,6 +19,11 @@ func main() {
 	app.Version = fmt.Sprintf("1.1.0+%s", build)
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
+			Name:   "endpoint",
+			Usage:  "endpoint for the s3 connection",
+			EnvVar: "PLUGIN_ENDPOINT,S3_ENDPOINT",
+		},
+		cli.StringFlag{
 			Name:   "access-key",
 			Usage:  "aws access key",
 			EnvVar: "PLUGIN_ACCESS_KEY,AWS_ACCESS_KEY_ID",
@@ -27,6 +32,11 @@ func main() {
 			Name:   "secret-key",
 			Usage:  "aws secret key",
 			EnvVar: "PLUGIN_SECRET_KEY,AWS_SECRET_ACCESS_KEY",
+		},
+		cli.BoolFlag{
+			Name:   "path-style",
+			Usage:  "use path style for bucket paths",
+			EnvVar: "PLUGIN_PATH_STYLE",
 		},
 		cli.StringFlag{
 			Name:   "bucket",
@@ -117,8 +127,9 @@ func run(c *cli.Context) error {
 	if c.String("env-file") != "" {
 		_ = godotenv.Load(c.String("env-file"))
 	}
-
 	plugin := Plugin{
+		Endpoint:               c.String("endpoint"),
+		PathStyle:              c.Bool("path-style"),
 		Key:                    c.String("access-key"),
 		Secret:                 c.String("secret-key"),
 		Bucket:                 c.String("bucket"),
