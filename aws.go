@@ -28,13 +28,19 @@ type AWS struct {
 }
 
 func NewAWS(p *Plugin) AWS {
-	sess := session.New(&aws.Config{
-		Endpoint:         &p.Endpoint,
-		DisableSSL:       aws.Bool(strings.HasPrefix(p.Endpoint, "http://")),
+	sessCfg := &aws.Config{
 		Credentials:      credentials.NewStaticCredentials(p.Key, p.Secret, ""),
 		S3ForcePathStyle: aws.Bool(p.PathStyle),
 		Region:           aws.String(p.Region),
-	})
+	}
+
+	fmt.Println(p.Endpoint)
+	if p.Endpoint != "" {
+		sessCfg.Endpoint = &p.Endpoint
+		sessCfg.DisableSSL = aws.Bool(strings.HasPrefix(p.Endpoint, "http://"))
+	}
+	sess := session.New(sessCfg)
+
 	c := s3.New(sess)
 	cf := cloudfront.New(sess)
 	r := make([]string, 1, 1)
