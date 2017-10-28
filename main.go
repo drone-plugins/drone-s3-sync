@@ -21,7 +21,7 @@ func main() {
 		cli.StringFlag{
 			Name:   "endpoint",
 			Usage:  "endpoint for the s3 connection",
-			EnvVar: "PLUGIN_ENDPOINT,S3_ENDPOINT",
+			EnvVar: "PLUGIN_ENDPOINT,S3_SYNC_ENDPOINT,S3_ENDPOINT",
 		},
 		cli.StringFlag{
 			Name:   "access-key",
