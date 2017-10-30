@@ -34,7 +34,6 @@ func NewAWS(p *Plugin) AWS {
 		Region:           aws.String(p.Region),
 	}
 
-	fmt.Println(p.Endpoint)
 	if p.Endpoint != "" {
 		sessCfg.Endpoint = &p.Endpoint
 		sessCfg.DisableSSL = aws.Bool(strings.HasPrefix(p.Endpoint, "http://"))
