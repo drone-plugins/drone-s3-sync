@@ -43,7 +43,7 @@ type result struct {
 	err error
 }
 
-var MissingAwsValuesMessage = "Must set access_key, secret_key, and bucket"
+var MissingAwsValuesMessage = "Must set 'bucket'"
 
 func (p *Plugin) Exec() error {
 	err := p.sanitizeInputs()
@@ -62,7 +62,7 @@ func (p *Plugin) Exec() error {
 }
 
 func (p *Plugin) sanitizeInputs() error {
-	if len(p.Key) == 0 || len(p.Secret) == 0 || len(p.Bucket) == 0 {
+	if len(p.Bucket) == 0 {
 		return errors.New(MissingAwsValuesMessage)
 	}
 
