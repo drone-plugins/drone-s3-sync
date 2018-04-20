@@ -6,12 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type Plugin struct {
 	Endpoint               string
 	Key                    string
 	Secret                 string
+	Token                  string
 	Bucket                 string
 	Region                 string
 	Source                 string
@@ -160,7 +163,7 @@ func (p *Plugin) runJobs() {
 	results := make(chan *result, len(p.jobs))
 	var invalidateJob *job
 
-	fmt.Printf("Synchronizing with bucket \"%s\"\n", p.Bucket)
+	log.Printf("Synchronizing with bucket \"%s\"\n", p.Bucket)
 	for _, j := range p.jobs {
 		jobChan <- struct{}{}
 		go func(j job) {
@@ -184,7 +187,7 @@ func (p *Plugin) runJobs() {
 	for _ = range p.jobs {
 		r := <-results
 		if r.err != nil {
-			fmt.Printf("ERROR: failed to %s %s to %s: %+v\n", r.j.action, r.j.local, r.j.remote, r.err)
+			log.Printf("ERROR: failed to %s %s to %s: %+v\n", r.j.action, r.j.local, r.j.remote, r.err)
 			os.Exit(1)
 		}
 	}
@@ -192,7 +195,7 @@ func (p *Plugin) runJobs() {
 	if invalidateJob != nil {
 		err := client.Invalidate(invalidateJob.remote)
 		if err != nil {
-			fmt.Printf("ERROR: failed to %s %s to %s: %+v\n", invalidateJob.action, invalidateJob.local, invalidateJob.remote, err)
+			log.Printf("ERROR: failed to %s %s to %s: %+v\n", invalidateJob.action, invalidateJob.local, invalidateJob.remote, err)
 			os.Exit(1)
 		}
 	}

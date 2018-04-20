@@ -29,7 +29,7 @@ type AWS struct {
 
 func NewAWS(p *Plugin) AWS {
 	sessCfg := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials(p.Key, p.Secret, ""),
+		Credentials:      credentials.NewStaticCredentials(p.Key, p.Secret, p.Token),
 		S3ForcePathStyle: aws.Bool(p.PathStyle),
 		Region:           aws.String(p.Region),
 	}
