@@ -14,7 +14,8 @@ type Plugin struct {
 	Endpoint               string
 	Key                    string
 	Secret                 string
-	Token                  string
+	MfaKey                 string
+	MfaSerial              string
 	Bucket                 string
 	Region                 string
 	Source                 string

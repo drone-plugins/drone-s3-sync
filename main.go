@@ -3,18 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli"
-
-	"github.com/pquerna/otp/totp"
 )
 
 var build = "0" // build number set at compile-time
@@ -151,7 +143,8 @@ func run(c *cli.Context) error {
 		PathStyle:              c.Bool("path-style"),
 		Key:                    c.String("access-key"),
 		Secret:                 c.String("secret-key"),
-		Token:                  "",
+		MfaKey:                 c.String("secret-mfa-key"),
+		MfaSerial:              c.String("secret-mfa-serial"),
 		Bucket:                 c.String("bucket"),
 		Region:                 c.String("region"),
 		Source:                 c.String("source"),
@@ -167,48 +160,5 @@ func run(c *cli.Context) error {
 		DryRun:                 c.Bool("dry-run"),
 	}
 
-	mfaKey := c.String("secret-mfa-key")
-	mfaSerial := c.String("secret-mfa-serial")
-	if len(mfaKey) != 0 && len(mfaSerial) != 0 {
-		log.Printf("Authentication by MFA")
-		setSessionToken(&plugin, mfaKey, mfaSerial)
-	}
-
 	return plugin.Exec()
-}
-
-func setSessionToken(plugin *Plugin, mfaKey string, mfaSerial string) {
-	key, err := totp.GenerateCode(mfaKey, time.Now())
-	if err != nil {
-		log.Fatalf("error in generating one time password: %v", err)
-	}
-
-	stsService := sts.New(session.New(&aws.Config{
-		Region:      &plugin.Region,
-		Credentials: credentials.NewStaticCredentials(plugin.Key, plugin.Secret, ""),
-	}))
-	input := &sts.GetSessionTokenInput{
-		DurationSeconds: aws.Int64(3600),
-		SerialNumber:    aws.String(mfaSerial),
-		TokenCode:       aws.String(key),
-	}
-
-	result, err := stsService.GetSessionToken(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case sts.ErrCodeRegionDisabledException:
-				log.Fatal(sts.ErrCodeRegionDisabledException, aerr.Error())
-			default:
-				log.Fatalf("error during getting session token (aws error): %v", aerr)
-			}
-		} else {
-			log.Fatalf("error during getting session token: %v", err)
-		}
-		return
-	}
-
-	plugin.Key = *result.Credentials.AccessKeyId
-	plugin.Secret = *result.Credentials.SecretAccessKey
-	plugin.Token = *result.Credentials.SessionToken
 }

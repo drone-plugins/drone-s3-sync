@@ -10,12 +10,17 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
+
+	"github.com/pquerna/otp/totp"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/ryanuber/go-glob"
 )
 
@@ -28,8 +33,14 @@ type AWS struct {
 }
 
 func NewAWS(p *Plugin) AWS {
+	var credentials = credentials.NewStaticCredentials(p.Key, p.Secret, "")
+	if len(p.MfaKey) != 0 && len(p.MfaSerial) != 0 {
+		log.Printf("Authentication with MFA")
+		credentials = getTemporaryCredentials(p.MfaKey, p.MfaSerial, p.Key, p.Secret, p.Region)
+	}
+
 	sessCfg := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials(p.Key, p.Secret, p.Token),
+		Credentials:      credentials,
 		S3ForcePathStyle: aws.Bool(p.PathStyle),
 		Region:           aws.String(p.Region),
 	}
@@ -383,4 +394,41 @@ func (a *AWS) Invalidate(invalidatePath string) error {
 		},
 	})
 	return err
+}
+
+func getTemporaryCredentials(mfaKey, mfaSerial, key, secret, region string) *credentials.Credentials {
+	key, err := totp.GenerateCode(mfaKey, time.Now())
+	if err != nil {
+		log.Fatalf("error in generating one time password: %v", err)
+	}
+
+	stsService := sts.New(session.New(&aws.Config{
+		Region:      &region,
+		Credentials: credentials.NewStaticCredentials(key, secret, ""),
+	}))
+	input := &sts.GetSessionTokenInput{
+		DurationSeconds: aws.Int64(3600),
+		SerialNumber:    aws.String(mfaSerial),
+		TokenCode:       aws.String(key),
+	}
+
+	result, err := stsService.GetSessionToken(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case sts.ErrCodeRegionDisabledException:
+				log.Fatal(sts.ErrCodeRegionDisabledException, aerr.Error())
+			default:
+				log.Fatalf("error during getting session token (aws error): %v", aerr)
+			}
+		}
+
+		log.Fatalf("error during getting session token: %v", err)
+	}
+
+	return credentials.NewStaticCredentials(
+		*result.Credentials.AccessKeyId,
+		*result.Credentials.SecretAccessKey,
+		*result.Credentials.SessionToken,
+	)
 }
