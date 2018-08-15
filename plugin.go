@@ -28,9 +28,8 @@ type Plugin struct {
 	PathStyle              bool
 	client                 AWS
 	jobs                   []job
+	MaxConcurrency         int
 }
-
-const maxConcurrent = 100
 
 type job struct {
 	local  string
@@ -156,7 +155,7 @@ func (p *Plugin) createInvalidateJob() {
 
 func (p *Plugin) runJobs() {
 	client := p.client
-	jobChan := make(chan struct{}, maxConcurrent)
+	jobChan := make(chan struct{}, p.MaxConcurrency)
 	results := make(chan *result, len(p.jobs))
 	var invalidateJob *job
 
