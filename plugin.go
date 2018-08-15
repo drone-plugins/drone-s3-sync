@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"strconv"
 )
 
 type Plugin struct {
@@ -29,7 +28,7 @@ type Plugin struct {
 	PathStyle              bool
 	client                 AWS
 	jobs                   []job
-	MaxConcurrency         string
+	MaxConcurrency         int
 }
 
 type job struct {
@@ -156,13 +155,7 @@ func (p *Plugin) createInvalidateJob() {
 
 func (p *Plugin) runJobs() {
 	client := p.client
-	maxConcurrency, err := strconv.Atoi(p.MaxConcurrency)
-	if err != nil {
-		fmt.Printf("ERROR: invalid input for max-concurrency")
-		os.Exit(1)
-	}
-
-	jobChan := make(chan struct{}, maxConcurrency)
+	jobChan := make(chan struct{}, p.MaxConcurrency)
 	results := make(chan *result, len(p.jobs))
 	var invalidateJob *job
 

@@ -116,10 +116,10 @@ func main() {
 			Name:  "env-file",
 			Usage: "source env file",
 		},
-		cli.StringFlag{
+		cli.IntFlag{
 			Name:  "max-concurrency",
 			Usage: "customize number concurrent files to process",
-			Value: "100",
+			Value: 100,
 			EnvVar: "PLUGIN_MAX_CONCURRENCY",
 
 		},
@@ -152,7 +152,7 @@ func run(c *cli.Context) error {
 		Redirects:              c.Generic("redirects").(*MapFlag).Get(),
 		CloudFrontDistribution: c.String("cloudfront-distribution"),
 		DryRun:                 c.Bool("dry-run"),
-		MaxConcurrency:         c.String("max-concurrency"),
+		MaxConcurrency:         c.Int("max-concurrency"),
 	}
 
 	return plugin.Exec()
