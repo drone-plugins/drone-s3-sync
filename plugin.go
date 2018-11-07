@@ -17,6 +17,7 @@ type Plugin struct {
 	Source                 string
 	Target                 string
 	Delete                 bool
+	Verbose                bool
 	Access                 map[string]string
 	CacheControl           map[string]string
 	ContentType            map[string]string
@@ -198,7 +199,7 @@ func (p *Plugin) runJobs() {
 }
 
 func debug(format string, args ...interface{}) {
-	if os.Getenv("DEBUG") != "" {
+	if os.Getenv("DEBUG") != "" || os.Getenv("DEBUG") != "" {
 		fmt.Printf(format+"\n", args...)
 	} else {
 		fmt.Printf(".")

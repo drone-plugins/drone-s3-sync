@@ -112,6 +112,11 @@ func main() {
 			Usage:  "dry run disables api calls",
 			EnvVar: "DRY_RUN,PLUGIN_DRY_RUN",
 		},
+		cli.BoolFlag{
+			Name:   "verbose",
+			Usage:  "make plugin return verbose log from the process",
+			EnvVar: "VERBOSE, PLUGIN_VERBOSE",
+		},
 		cli.StringFlag{
 			Name:  "env-file",
 			Usage: "source env file",
@@ -144,6 +149,7 @@ func run(c *cli.Context) error {
 		Source:                 c.String("source"),
 		Target:                 c.String("target"),
 		Delete:                 c.Bool("delete"),
+		Verbose:                 c.Bool("verbose"),
 		Access:                 c.Generic("access").(*StringMapFlag).Get(),
 		CacheControl:           c.Generic("cache-control").(*StringMapFlag).Get(),
 		ContentType:            c.Generic("content-type").(*StringMapFlag).Get(),
