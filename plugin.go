@@ -199,7 +199,7 @@ func (p *Plugin) runJobs() {
 }
 
 func debug(format string, args ...interface{}) {
-	if os.Getenv("DEBUG") != "" || os.Getenv("DEBUG") != "" {
+	if os.Getenv("DEBUG") != "" || os.Getenv("VERBOSE") != "" {
 		fmt.Printf(format+"\n", args...)
 	} else {
 		fmt.Printf(".")
