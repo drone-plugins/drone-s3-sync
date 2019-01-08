@@ -310,9 +310,9 @@ func (a *AWS) Redirect(path, location string) error {
 	}
 
 	_, err := a.client.PutObject(&s3.PutObjectInput{
-		Bucket: aws.String(p.Bucket),
-		Key:    aws.String(path),
-		ACL:    aws.String("public-read"),
+		Bucket:                  aws.String(p.Bucket),
+		Key:                     aws.String(path),
+		ACL:                     aws.String("public-read"),
 		WebsiteRedirectLocation: aws.String(location),
 	})
 	return err
