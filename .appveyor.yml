@@ -11,6 +11,7 @@ environment:
     secure: '4YzzahbEiMZQJpOCOd1LAw=='
   DOCKER_PASSWORD:
     secure: 'VqO/G3Zfslu6zSLdwHKO+Q=='
+  GO111MODULE: on
 
 install:
   - ps: |
