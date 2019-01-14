@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
@@ -117,11 +117,10 @@ func main() {
 			Usage: "source env file",
 		},
 		cli.IntFlag{
-			Name:  "max-concurrency",
-			Usage: "customize number concurrent files to process",
-			Value: 100,
+			Name:   "max-concurrency",
+			Usage:  "customize number concurrent files to process",
+			Value:  100,
 			EnvVar: "PLUGIN_MAX_CONCURRENCY",
-
 		},
 	}
 
