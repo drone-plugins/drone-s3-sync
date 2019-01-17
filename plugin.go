@@ -125,8 +125,9 @@ func (p *Plugin) createSyncJobs() {
 	if p.Delete {
 		for _, r := range remote {
 			found := false
+			rPath := strings.TrimPrefix(r, p.Target+"/")
 			for _, l := range local {
-				if l == r {
+				if l == rPath {
 					found = true
 					break
 				}
