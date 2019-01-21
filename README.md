@@ -7,7 +7,6 @@
 [![](https://images.microbadger.com/badges/image/plugins/s3-sync.svg)](https://microbadger.com/images/plugins/s3-sync "Get your own image badge on microbadger.com")
 [![Go Doc](https://godoc.org/github.com/drone-plugins/drone-s3-sync?status.svg)](http://godoc.org/github.com/drone-plugins/drone-s3-sync)
 [![Go Report](https://goreportcard.com/badge/github.com/drone-plugins/drone-s3-sync)](https://goreportcard.com/report/github.com/drone-plugins/drone-s3-sync)
-[![](https://images.microbadger.com/badges/image/plugins/s3-sync.svg)](https://microbadger.com/images/plugins/s3-sync "Get your own image badge on microbadger.com")
 
 Drone plugin to synchronize a directory with an Amazon S3 Bucket. For the usage information and a listing of the available options please take a look at [the docs](http://plugins.drone.io/drone-plugins/drone-s3-sync/).
 
