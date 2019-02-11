@@ -125,8 +125,9 @@ func (p *Plugin) createSyncJobs() {
 	if p.Delete {
 		for _, r := range remote {
 			found := false
+			rPath := strings.TrimPrefix(r, p.Target+"/")
 			for _, l := range local {
-				if l == r {
+				if l == rPath {
 					found = true
 					break
 				}
@@ -180,7 +181,7 @@ func (p *Plugin) runJobs() {
 		}(j)
 	}
 
-	for _ = range p.jobs {
+	for range p.jobs {
 		r := <-results
 		if r.err != nil {
 			fmt.Printf("ERROR: failed to %s %s to %s: %+v\n", r.j.action, r.j.local, r.j.remote, r.err)
