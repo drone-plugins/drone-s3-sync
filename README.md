@@ -42,3 +42,15 @@ docker run --rm \
   -w $(pwd) \
   plugins/s3-sync
 ```
+
+## AWS Permissions
+
+This drone plugin requires the following permissions:
+
+```
+s3:PutObject
+s3:GetObject
+s3:GetObjectAcl
+s3:DeleteObject
+s3:ListBucket
+```
