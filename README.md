@@ -47,10 +47,10 @@ docker run --rm \
 
 This drone plugin requires the following permissions:
 
-```
-s3:PutObject
-s3:GetObject
-s3:GetObjectAcl
-s3:DeleteObject
-s3:ListBucket
-```
+| Permission | Description |
+| ---------- | ----------- |
+| s3:PutObject | PuObject called when the file is missing in s3 or a change in the file contents is found, CopyObject is called when a change in the metadata is found |
+| s3:GetObject | HeadObject call to retrieve the metadata of a file |
+| s3:GetObjectAcl | Called when there are no contents or metadata changes to compare the ACL |
+| s3:ListBucket | ListObjects is called on startup, the result is only used when the delete flag is provided |
+| s3:DeleteObject | (optional) only used when the delete flag is passed in (or PLUGIN_DELETE env var is set) |
