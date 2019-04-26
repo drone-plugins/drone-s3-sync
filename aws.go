@@ -210,6 +210,7 @@ func (a *AWS) Upload(local, remote string) error {
 		}
 
 		if !shouldCopy {
+			debug("Retrieving ACL for \"%s\"", local)
 			grant, err := a.client.GetObjectAcl(&s3.GetObjectAclInput{
 				Bucket: aws.String(p.Bucket),
 				Key:    aws.String(remote),
