@@ -70,10 +70,7 @@ func (p *Plugin) sanitizeInputs() error {
 		return err
 	}
 	p.Source = filepath.Join(wd, p.Source)
-
-	if strings.HasPrefix(p.Target, "/") {
-		p.Target = p.Target[1:]
-	}
+	p.Target = filepath.Join(p.Target)
 
 	return nil
 }
@@ -95,9 +92,7 @@ func (p *Plugin) createSyncJobs() {
 		localPath := path
 		if p.Source != "." {
 			localPath = strings.TrimPrefix(path, p.Source)
-			if strings.HasPrefix(localPath, "/") {
-				localPath = localPath[1:]
-			}
+			localPath = strings.TrimPrefix(localPath, string(os.PathSeparator))
 		}
 		local = append(local, localPath)
 		p.jobs = append(p.jobs, job{
@@ -114,7 +109,7 @@ func (p *Plugin) createSyncJobs() {
 	}
 
 	for path, location := range p.Redirects {
-		path = strings.TrimPrefix(path, "/")
+		path = strings.TrimPrefix(path, string(os.PathSeparator))
 		local = append(local, path)
 		p.jobs = append(p.jobs, job{
 			local:  path,
@@ -125,9 +120,10 @@ func (p *Plugin) createSyncJobs() {
 	if p.Delete {
 		for _, r := range remote {
 			found := false
-			rPath := strings.TrimPrefix(r, p.Target+"/")
+			r = strings.TrimPrefix(r, p.Target)
+			r = strings.TrimPrefix(r, string(os.PathSeparator))
 			for _, l := range local {
-				if l == rPath {
+				if l == r {
 					found = true
 					break
 				}
@@ -148,7 +144,7 @@ func (p *Plugin) createInvalidateJob() {
 	if len(p.CloudFrontDistribution) > 0 {
 		p.jobs = append(p.jobs, job{
 			local:  "",
-			remote: filepath.Join("/", p.Target, "*"),
+			remote: filepath.Join(string(os.PathSeparator), p.Target, "*"),
 			action: "invalidateCloudFront",
 		})
 	}
