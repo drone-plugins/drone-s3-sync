@@ -120,10 +120,10 @@ func (p *Plugin) createSyncJobs() {
 	if p.Delete {
 		for _, r := range remote {
 			found := false
-			r = strings.TrimPrefix(r, p.Target)
-			r = strings.TrimPrefix(r, string(os.PathSeparator))
+			matcher := strings.TrimPrefix(r, p.Target)
+			matcher = strings.TrimPrefix(matcher, string(os.PathSeparator))
 			for _, l := range local {
-				if l == r {
+				if l == matcher {
 					found = true
 					break
 				}
