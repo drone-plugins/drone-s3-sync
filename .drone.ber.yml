@@ -1,0 +1,146 @@
+---
+kind: pipeline
+name: testing
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: vet
+    pull: always
+    image: golang:1.11
+    commands:
+      - go vet ./...
+    environment:
+      GO111MODULE: on
+    volumes:
+      - name: gopath
+        path: /go
+
+  - name: test
+    pull: always
+    image: golang:1.11
+    commands:
+      - go test -cover ./...
+    environment:
+      GO111MODULE: on
+    volumes:
+      - name: gopath
+        path: /go
+
+volumes:
+  - name: gopath
+    temp: {}
+
+trigger:
+  ref:
+    - refs/heads/master
+    - "refs/tags/**"
+    - "refs/pull/**"
+
+---
+kind: pipeline
+name: linux-amd64
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: build-push
+    pull: always
+    image: golang:1.11
+    commands:
+      - "go build -v -ldflags \"-X main.version=${DRONE_DEPLOY_TO}\" -a -tags netgo -o release/linux/amd64/drone-s3-sync"
+    environment:
+      CGO_ENABLED: 0
+      GO111MODULE: on
+    when:
+      event:
+        exclude:
+          - tag
+
+  - name: build-tag
+    pull: always
+    image: golang:1.11
+    commands:
+      - "go build -v -ldflags \"-X main.version=${DRONE_TAG##v}\" -a -tags netgo -o release/linux/amd64/drone-s3-sync"
+    environment:
+      CGO_ENABLED: 0
+      GO111MODULE: on
+    when:
+      event:
+        - tag
+
+  - name: executable
+    pull: always
+    image: golang:1.11
+    commands:
+      - ./release/linux/amd64/drone-s3-sync --help
+
+  - name: publish
+    image: plugins/ecr
+    settings:
+      mirror:
+        from_secret: docker_proxy_mirror
+      auto_tag_suffix: arm
+      auto_tag: true
+      purge: false
+      tags:
+        - ${CI_COMMIT_SHA}
+      registry:
+        from_secret: registry
+      repo:
+        from_secret: repository_s3_sync
+      dockerfile: docker/Dockerfile.linux.amd64
+      region:
+        from_secret: region
+      access_key:
+        from_secret: aws_access_key_production
+      secret_key:
+        from_secret: aws_access_key_secret_production
+
+trigger:
+  event:
+    include:
+      - promote
+      - tag
+
+depends_on:
+  - testing
+
+---
+kind: "secret"
+name: "aws_access_key_production"
+get:
+  path: "drone/co-production-drone-plugins"
+  name: "aws_access_key"
+
+---
+kind: "secret"
+name: "aws_access_key_secret_production"
+get:
+  path: "drone/co-production-drone-plugins"
+  name: "aws_access_key_secret"
+
+---
+kind: "secret"
+name: "region"
+get:
+  path: "drone/co-production-drone-plugins"
+  name: "region"
+
+---
+kind: "secret"
+name: "registry"
+get:
+  path: "drone/co-production-drone-plugins"
+  name: "registry"
+
+---
+kind: "secret"
+name: "repository_s3_sync"
+get:
+  path: "drone/co-production-drone-plugins"
+  name: "repository_s3_sync"
