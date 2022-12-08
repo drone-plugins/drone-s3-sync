@@ -124,9 +124,6 @@ func (a *AWS) Upload(local, remote string) error {
 		Key:    aws.String(remote),
 	})
 	if err != nil && err.(awserr.Error).Code() != "404" {
-		if err.(awserr.Error).Code() == "404" {
-			return err
-		}
 
 		debug("\"%s\" not found in bucket, uploading with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
 		var putObject = &s3.PutObjectInput{
