@@ -51,7 +51,7 @@ func (p *Plugin) Exec() error {
 		os.Exit(1)
 	}
 
-	p.jobs = make([]job, 1, 1)
+	p.jobs = make([]job, 1)
 	p.client = NewAWS(p)
 
 	p.createSyncJobs()
@@ -70,10 +70,7 @@ func (p *Plugin) sanitizeInputs() error {
 		return err
 	}
 	p.Source = filepath.Join(wd, p.Source)
-
-	if strings.HasPrefix(p.Target, "/") {
-		p.Target = p.Target[1:]
-	}
+	p.Target = strings.TrimPrefix(p.Target, "/")
 
 	return nil
 }
@@ -85,7 +82,7 @@ func (p *Plugin) createSyncJobs() {
 		os.Exit(1)
 	}
 
-	local := make([]string, 1, 1)
+	local := make([]string, 1)
 
 	err = filepath.Walk(p.Source, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -95,9 +92,7 @@ func (p *Plugin) createSyncJobs() {
 		localPath := path
 		if p.Source != "." {
 			localPath = strings.TrimPrefix(path, p.Source)
-			if strings.HasPrefix(localPath, "/") {
-				localPath = localPath[1:]
-			}
+			localPath = strings.TrimPrefix(localPath, "/")
 		}
 		local = append(local, localPath)
 		p.jobs = append(p.jobs, job{
