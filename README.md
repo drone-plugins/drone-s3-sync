@@ -12,26 +12,31 @@ Drone plugin to synchronize a directory with an Amazon S3 Bucket. For the usage 
 
 ## Build
 
-Build the binary with the following commands:
+Build the binary with the following command:
 
-```
-go build
+```bash
+export GOOS=linux
+export GOARCH=amd64
+export CGO_ENABLED=0
+export GO111MODULE=on
+
+go build -v -a -tags netgo -o release/linux/amd64/drone-s3-sync
 ```
 
 ## Docker
 
-Build the Docker image with the following commands:
+Build the Docker image with the following command:
 
-```
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -tags netgo -o release/linux/amd64/drone-s3-sync
-docker build --rm -t plugins/s3-sync .
+```bash
+docker build \
+  --label org.label-schema.build-date=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+  --label org.label-schema.vcs-ref=$(git rev-parse --short HEAD) \
+  --file docker/Dockerfile.linux.amd64 --tag plugins/s3-sync .
 ```
 
 ## Usage
 
-Execute from the working directory:
-
-```sh
+```bash
 docker run --rm \
   -e PLUGIN_SOURCE=<source> \
   -e PLUGIN_TARGET=<target> \
