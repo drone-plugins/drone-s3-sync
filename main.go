@@ -67,6 +67,11 @@ func main() {
 			Usage:  "delete locally removed files from the target",
 			EnvVar: "PLUGIN_DELETE",
 		},
+		cli.BoolFlag{
+			Name:   "empty-bucket",
+			Usage:  "delete all files from the target bucket",
+			EnvVar: "PLUGIN_EMPTY_BUCKET",
+		},
 		cli.GenericFlag{
 			Name:   "access",
 			Usage:  "access control settings",
@@ -144,6 +149,7 @@ func run(c *cli.Context) error {
 		Source:                 c.String("source"),
 		Target:                 c.String("target"),
 		Delete:                 c.Bool("delete"),
+		EmptyBucket:            c.Bool("empty-bucket"),
 		Access:                 c.Generic("access").(*StringMapFlag).Get(),
 		CacheControl:           c.Generic("cache-control").(*StringMapFlag).Get(),
 		ContentType:            c.Generic("content-type").(*StringMapFlag).Get(),
