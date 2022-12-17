@@ -17,6 +17,7 @@ type Plugin struct {
 	Source                 string
 	Target                 string
 	Delete                 bool
+	EmptyBucket            bool
 	Access                 map[string]string
 	CacheControl           map[string]string
 	ContentType            map[string]string
@@ -155,7 +156,17 @@ func (p *Plugin) runJobs() {
 	results := make(chan *result, len(p.jobs))
 	var invalidateJob *job
 
+	if(p.EmptyBucket) {
+		fmt.Printf("Emptying bucket \"%s before synchronizing \"\n", p.Bucket)
+		err := client.EmptyBucket()
+		if err != nil {
+			fmt.Printf("ERROR: failed to empty bucket: %+v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	fmt.Printf("Synchronizing with bucket \"%s\"\n", p.Bucket)
+
 	for _, j := range p.jobs {
 		jobChan <- struct{}{}
 		go func(j job) {

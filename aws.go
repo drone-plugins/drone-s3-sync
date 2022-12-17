@@ -384,3 +384,26 @@ func (a *AWS) Invalidate(invalidatePath string) error {
 	})
 	return err
 }
+
+func (a *AWS) EmptyBucket() error {
+	p := a.plugin
+	debug("Emptying bucket \"%s\"", p.Bucket)
+
+	if a.plugin.DryRun {
+		return nil
+	}
+
+	objects, err := a.List("")
+	if err != nil {
+		return err
+	}
+
+	for _, object := range objects {
+		err = a.Delete(object)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
