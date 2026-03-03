@@ -1,57 +1,67 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudfront"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
+	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/ryanuber/go-glob"
 )
 
 type AWS struct {
-	client   *s3.S3
-	cfClient *cloudfront.CloudFront
+	client   *s3.Client
+	cfClient *cloudfront.Client
 	remote   []string
 	local    []string
 	plugin   *Plugin
+	ctx      context.Context
 }
 
 func NewAWS(p *Plugin) AWS {
+	ctx := context.Background()
 
-	sessCfg := &aws.Config{
-		S3ForcePathStyle: aws.Bool(p.PathStyle),
-		Region:           aws.String(p.Region),
-	}
-
-	if p.Endpoint != "" {
-		sessCfg.Endpoint = &p.Endpoint
-		sessCfg.DisableSSL = aws.Bool(strings.HasPrefix(p.Endpoint, "http://"))
-	}
+	var optFns []func(*config.LoadOptions) error
+	optFns = append(optFns, config.WithRegion(p.Region))
 
 	// allowing to use the instance role or provide a key and secret
 	if p.Key != "" && p.Secret != "" {
-		sessCfg.Credentials = credentials.NewStaticCredentials(p.Key, p.Secret, "")
+		optFns = append(optFns, config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(p.Key, p.Secret, ""),
+		))
 	}
 
-	sess, _ := session.NewSession(sessCfg)
+	cfg, err := config.LoadDefaultConfig(ctx, optFns...)
+	if err != nil {
+		panic(fmt.Sprintf("failed to load AWS config: %v", err))
+	}
 
-	c := s3.New(sess)
-	cf := cloudfront.New(sess)
+	s3Opts := func(o *s3.Options) {
+		o.UsePathStyle = p.PathStyle
+		if p.Endpoint != "" {
+			o.BaseEndpoint = aws.String(p.Endpoint)
+		}
+	}
+
+	c := s3.NewFromConfig(cfg, s3Opts)
+	cf := cloudfront.NewFromConfig(cfg)
 	r := make([]string, 1)
 	l := make([]string, 1)
 
-	return AWS{c, cf, r, l, p}
+	return AWS{c, cf, r, l, p, ctx}
 }
 
 func (a *AWS) Upload(local, remote string) error {
@@ -109,29 +119,31 @@ func (a *AWS) Upload(local, remote string) error {
 		}
 	}
 
-	metadata := map[string]*string{}
+	metadata := map[string]string{}
 	for pattern := range p.Metadata {
 		if match := glob.Glob(pattern, local); match {
 			for k, v := range p.Metadata[pattern] {
-				metadata[k] = aws.String(v)
+				metadata[k] = v
 			}
 			break
 		}
 	}
 
-	head, err := a.client.HeadObject(&s3.HeadObjectInput{
+	head, err := a.client.HeadObject(a.ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(remote),
 	})
-	if err != nil && err.(awserr.Error).Code() != "404" {
 
+	// Check if object doesn't exist (404)
+	var apiErr smithy.APIError
+	if err != nil && errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
 		debug("\"%s\" not found in bucket, uploading with Content-Type \"%s\" and permissions \"%s\"", local, contentType, access)
 		var putObject = &s3.PutObjectInput{
 			Bucket:      aws.String(p.Bucket),
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
-			ACL:         aws.String(access),
+			ACL:         s3types.ObjectCannedACL(access),
 			Metadata:    metadata,
 		}
 
@@ -148,7 +160,9 @@ func (a *AWS) Upload(local, remote string) error {
 			return nil
 		}
 
-		_, err = a.client.PutObject(putObject)
+		_, err = a.client.PutObject(a.ctx, putObject)
+		return err
+	} else if err != nil {
 		return err
 	}
 
@@ -156,7 +170,7 @@ func (a *AWS) Upload(local, remote string) error {
 	_, _ = io.Copy(hash, file)
 	sum := fmt.Sprintf("\"%x\"", hash.Sum(nil))
 
-	if sum == *head.ETag {
+	if head.ETag != nil && sum == *head.ETag {
 		shouldCopy := false
 
 		if head.ContentType == nil && contentType != "" {
@@ -197,7 +211,7 @@ func (a *AWS) Upload(local, remote string) error {
 		if !shouldCopy && len(metadata) > 0 {
 			for k, v := range metadata {
 				if hv, ok := head.Metadata[k]; ok {
-					if *v != *hv {
+					if v != hv {
 						debug("Metadata values have changed for %s", local)
 						shouldCopy = true
 						break
@@ -208,7 +222,7 @@ func (a *AWS) Upload(local, remote string) error {
 
 		if !shouldCopy {
 			debug("Retrieving ACL for \"%s\"", local)
-			grant, err := a.client.GetObjectAcl(&s3.GetObjectAclInput{
+			grant, err := a.client.GetObjectAcl(a.ctx, &s3.GetObjectAclInput{
 				Bucket: aws.String(p.Bucket),
 				Key:    aws.String(remote),
 			})
@@ -218,12 +232,12 @@ func (a *AWS) Upload(local, remote string) error {
 
 			previousAccess := "private"
 			for _, g := range grant.Grants {
-				gt := *g.Grantee
-				if gt.URI != nil {
+				gt := g.Grantee
+				if gt != nil && gt.URI != nil {
 					if *gt.URI == "http://acs.amazonaws.com/groups/global/AllUsers" {
-						if *g.Permission == "READ" {
+						if g.Permission == s3types.PermissionRead {
 							previousAccess = "public-read"
-						} else if *g.Permission == "WRITE" {
+						} else if g.Permission == s3types.PermissionWrite {
 							previousAccess = "public-read-write"
 						}
 					}
@@ -246,10 +260,10 @@ func (a *AWS) Upload(local, remote string) error {
 			Bucket:            aws.String(p.Bucket),
 			Key:               aws.String(remote),
 			CopySource:        aws.String(fmt.Sprintf("%s/%s", p.Bucket, remote)),
-			ACL:               aws.String(access),
+			ACL:               s3types.ObjectCannedACL(access),
 			ContentType:       aws.String(contentType),
 			Metadata:          metadata,
-			MetadataDirective: aws.String("REPLACE"),
+			MetadataDirective: s3types.MetadataDirectiveReplace,
 		}
 
 		if len(cacheControl) > 0 {
@@ -265,7 +279,7 @@ func (a *AWS) Upload(local, remote string) error {
 			return nil
 		}
 
-		_, err = a.client.CopyObject(copyObject)
+		_, err = a.client.CopyObject(a.ctx, copyObject)
 		return err
 	} else {
 		_, err = file.Seek(0, 0)
@@ -279,7 +293,7 @@ func (a *AWS) Upload(local, remote string) error {
 			Key:         aws.String(remote),
 			Body:        file,
 			ContentType: aws.String(contentType),
-			ACL:         aws.String(access),
+			ACL:         s3types.ObjectCannedACL(access),
 			Metadata:    metadata,
 		}
 
@@ -296,7 +310,7 @@ func (a *AWS) Upload(local, remote string) error {
 			return nil
 		}
 
-		_, err = a.client.PutObject(putObject)
+		_, err = a.client.PutObject(a.ctx, putObject)
 		return err
 	}
 }
@@ -309,10 +323,10 @@ func (a *AWS) Redirect(path, location string) error {
 		return nil
 	}
 
-	_, err := a.client.PutObject(&s3.PutObjectInput{
+	_, err := a.client.PutObject(a.ctx, &s3.PutObjectInput{
 		Bucket:                  aws.String(p.Bucket),
 		Key:                     aws.String(path),
-		ACL:                     aws.String("public-read"),
+		ACL:                     s3types.ObjectCannedACLPublicRead,
 		WebsiteRedirectLocation: aws.String(location),
 	})
 	return err
@@ -326,7 +340,7 @@ func (a *AWS) Delete(remote string) error {
 		return nil
 	}
 
-	_, err := a.client.DeleteObject(&s3.DeleteObjectInput{
+	_, err := a.client.DeleteObject(a.ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(p.Bucket),
 		Key:    aws.String(remote),
 	})
@@ -335,32 +349,22 @@ func (a *AWS) Delete(remote string) error {
 
 func (a *AWS) List(path string) ([]string, error) {
 	p := a.plugin
-	remote := make([]string, 1)
-	resp, err := a.client.ListObjects(&s3.ListObjectsInput{
+	remote := make([]string, 0)
+
+	paginator := s3.NewListObjectsV2Paginator(a.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(p.Bucket),
 		Prefix: aws.String(path),
 	})
-	if err != nil {
-		return remote, err
-	}
 
-	for _, item := range resp.Contents {
-		remote = append(remote, *item.Key)
-	}
-
-	for *resp.IsTruncated {
-		resp, err = a.client.ListObjects(&s3.ListObjectsInput{
-			Bucket: aws.String(p.Bucket),
-			Prefix: aws.String(path),
-			Marker: aws.String(remote[len(remote)-1]),
-		})
-
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(a.ctx)
 		if err != nil {
 			return remote, err
 		}
-
-		for _, item := range resp.Contents {
-			remote = append(remote, *item.Key)
+		for _, item := range page.Contents {
+			if item.Key != nil {
+				remote = append(remote, *item.Key)
+			}
 		}
 	}
 
@@ -370,14 +374,14 @@ func (a *AWS) List(path string) ([]string, error) {
 func (a *AWS) Invalidate(invalidatePath string) error {
 	p := a.plugin
 	debug("Invalidating \"%s\"", invalidatePath)
-	_, err := a.cfClient.CreateInvalidation(&cloudfront.CreateInvalidationInput{
+	_, err := a.cfClient.CreateInvalidation(a.ctx, &cloudfront.CreateInvalidationInput{
 		DistributionId: aws.String(p.CloudFrontDistribution),
-		InvalidationBatch: &cloudfront.InvalidationBatch{
+		InvalidationBatch: &cftypes.InvalidationBatch{
 			CallerReference: aws.String(time.Now().Format(time.RFC3339Nano)),
-			Paths: &cloudfront.Paths{
-				Quantity: aws.Int64(1),
-				Items: []*string{
-					aws.String(invalidatePath),
+			Paths: &cftypes.Paths{
+				Quantity: aws.Int32(1),
+				Items: []string{
+					invalidatePath,
 				},
 			},
 		},
