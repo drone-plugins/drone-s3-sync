@@ -74,10 +74,10 @@ func NewAWS(p *Plugin) AWS {
 }
 
 func normalizeEndpoint(endpoint string) string {
-	if !strings.HasPrefix(endpoint, "http://") && !strings.HasPrefix(endpoint, "https://") {
-		return "https://" + endpoint
+	if endpoint == "" || strings.Contains(endpoint, "://") {
+		return endpoint
 	}
-	return endpoint
+	return "https://" + endpoint
 }
 
 func (a *AWS) Upload(local, remote string) error {
