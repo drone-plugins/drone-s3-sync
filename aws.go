@@ -9,6 +9,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -50,9 +51,13 @@ func NewAWS(p *Plugin) AWS {
 
 	s3Opts := []func(*s3.Options){}
 	if p.Endpoint != "" {
+		endpoint := normalizeEndpoint(p.Endpoint)
 		s3Opts = append(s3Opts, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(p.Endpoint)
+			o.BaseEndpoint = aws.String(endpoint)
 			o.UsePathStyle = p.PathStyle
+			// S3-compatible services (MinIO, Spaces, B2, etc.) may not support the
+			// CRC32 checksums that SDK v2 sends by default with PutObject.
+			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		})
 	} else if p.PathStyle {
 		s3Opts = append(s3Opts, func(o *s3.Options) {
@@ -66,6 +71,13 @@ func NewAWS(p *Plugin) AWS {
 	l := make([]string, 1)
 
 	return AWS{c, cf, r, l, p}
+}
+
+func normalizeEndpoint(endpoint string) string {
+	if endpoint == "" || strings.Contains(endpoint, "://") {
+		return endpoint
+	}
+	return "https://" + endpoint
 }
 
 func (a *AWS) Upload(local, remote string) error {
@@ -142,7 +154,7 @@ func (a *AWS) Upload(local, remote string) error {
 		var apiErr smithy.APIError
 		isNotFound := false
 		if ok := errors.As(err, &apiErr); ok {
-			if apiErr.ErrorCode() == "404" || apiErr.ErrorCode() == "NotFound" {
+			if apiErr.ErrorCode() == "404" || apiErr.ErrorCode() == "NotFound" || apiErr.ErrorCode() == "NoSuchKey" {
 				isNotFound = true
 			}
 		}
@@ -208,7 +220,7 @@ func (a *AWS) Upload(local, remote string) error {
 	_, _ = io.Copy(hash, file)
 	sum := fmt.Sprintf("\"%x\"", hash.Sum(nil))
 
-	if sum == *head.ETag {
+	if head.ETag != nil && sum == *head.ETag {
 		shouldCopy := false
 
 		if head.ContentType == nil && contentType != "" {
