@@ -12,6 +12,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1803
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - go vet ./...
   environment:
     GO111MODULE: on
@@ -23,6 +24,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1803
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - go test -cover ./...
   environment:
     GO111MODULE: on
@@ -54,6 +56,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1803
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - "go build -v -ldflags \"-X main.version=${DRONE_COMMIT_SHA:0:8}\" -a -tags netgo -o release/windows/amd64/drone-s3-sync.exe"
   environment:
     CGO_ENABLED: 0
@@ -67,6 +70,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1803
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - "go build -v -ldflags \"-X main.version=${DRONE_TAG##v}\" -a -tags netgo -o release/windows/amd64/drone-s3-sync.exe"
   environment:
     CGO_ENABLED: 0
@@ -79,6 +83,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1803
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - ./release/windows/amd64/drone-s3-sync.exe --help
 
 - name: dryrun
@@ -150,6 +155,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1809
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - "go build -v -ldflags \"-X main.version=${DRONE_COMMIT_SHA:0:8}\" -a -tags netgo -o release/windows/amd64/drone-s3-sync.exe"
   environment:
     CGO_ENABLED: 0
@@ -163,6 +169,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1809
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - "go build -v -ldflags \"-X main.version=${DRONE_TAG##v}\" -a -tags netgo -o release/windows/amd64/drone-s3-sync.exe"
   environment:
     CGO_ENABLED: 0
@@ -175,6 +182,7 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1809
   commands:
+  - . ./scripts/setup-go-windows.ps1
   - ./release/windows/amd64/drone-s3-sync.exe --help
 
 - name: dryrun
