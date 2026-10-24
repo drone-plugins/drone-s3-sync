@@ -83,7 +83,6 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1803
   commands:
-  - . ./scripts/setup-go-windows.ps1
   - ./release/windows/amd64/drone-s3-sync.exe --help
 
 - name: dryrun
@@ -186,7 +185,6 @@ steps:
   pull: always
   image: golang:1.11-windowsservercore-1809
   commands:
-  - . ./scripts/setup-go-windows.ps1
   - ./release/windows/amd64/drone-s3-sync.exe --help
 
 - name: dryrun
