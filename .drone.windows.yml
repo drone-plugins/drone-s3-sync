@@ -89,8 +89,6 @@ steps:
   pull: always
   image: plugins/docker:windows-1803
   settings:
-    pull_image: true
-    no_cache: true
     daemon_off: true
     dockerfile: docker/Dockerfile.windows.1803
     dry_run: true
@@ -111,8 +109,6 @@ steps:
   pull: always
   image: plugins/docker:windows-1803
   settings:
-    pull_image: true
-    no_cache: true
     auto_tag: true
     auto_tag_suffix: windows-1803
     daemon_off: true
@@ -191,8 +187,6 @@ steps:
   pull: always
   image: plugins/docker:windows-1809
   settings:
-    pull_image: true
-    no_cache: true
     daemon_off: true
     dockerfile: docker/Dockerfile.windows.1809
     dry_run: true
@@ -213,8 +207,6 @@ steps:
   pull: always
   image: plugins/docker:windows-1809
   settings:
-    pull_image: true
-    no_cache: true
     auto_tag: true
     auto_tag_suffix: windows-1809
     daemon_off: true
